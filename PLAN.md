@@ -48,20 +48,49 @@ Tom gets an **email** when meds are added, changed or deleted, and when a dose h
 - Turn off ad tracking, diagnostics and "Customization Service" in Settings.
 
 ## Roadmap (one step at a time, each its own pull request)
-- [ ] **0. Plan agreed** (this PR)
+Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
+
+- [x] **0. Plan agreed** (merged 2026-11-22)
+- [ ] **2. Meds screen** ← **IN PROGRESS**
+  - [x] Home screen mockups made (`docs/mockups/`). Tom chose **C+A**: photos full screen most of the day, and the screen switches to the meds lists by itself when meds are due, then back to photos once everything is ticked. **No chime** on the switch unless it's part of the normal alarm.
+  - [ ] Build: Apps Script backend, today's lists, check boxes, PIN-protected Edit Meds, emails, history with undo, 90-day cleanup
 - [ ] **1. Tablet cleanup guide:** debloat with ADB and set privacy settings
-- [ ] **2. Meds screen:** mockups first, then the Apps Script backend, today's lists, check boxes, PIN-protected Edit Meds, emails, history with undo, and the 90-day cleanup
-- [ ] **3. Alarms and missed-dose emails**
+- [ ] **3. Alarms and missed-dose emails** (talk with Tom first, see "Alarm options" below)
 - [ ] **4. Photo slideshow** from the Drive folder
 - [ ] **5. Call buttons** (research, then mockups, then build)
 - [ ] **6. Tablet setup and handover:** always-on screen, app pinning, a one-page "how to use it" sheet for Gene and Peggy
+
+## Next steps (where to pick up)
+1. Build step 2 (meds screen) using layout C+A from `docs/mockups/`.
+2. Then step 1 (tablet cleanup guide), then steps 3 to 6.
+
+## Alarm options: discuss with Tom before step 3
+Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
+- **Type:** gentle chime, louder bell, or a spoken message ("Gene, time for your morning pills")?
+- **Duration:** ring once, repeat every few minutes until ticked, or stop after a set time?
+- **Volume:** fixed loud volume set by the app, or follow the tablet's volume? Should it get louder if ignored?
+- **Mute / snooze:** a big "Snooze 10 min" button? A quiet-hours time (for example overnight)? Who can turn it off (needs the PIN?)
+- The switch to the meds screen itself is silent (Tom, 2026-11-22).
+
+## Notes for building step 2
+- Tablet: Galaxy Tab A11+, 1920x1200 screen, about **1280x800 in web page units**. Mockups are drawn at that size.
+- Gene's med list came from Tom as a PDF (13 Sept 2026). It is **not** in the repo (health data). Ask Tom to re-share it when entering meds. What it needs from the app:
+  - four daily slots (Wake up, Morning, With dinner, After 8 pm / bedtime)
+  - a **2-hour "nothing else" wait** after the Wake up dose
+  - a **red hazardous-handling warning** on one med
+  - notes like "empty stomach", "after food", "may take with snack"
+  - doses shown as "4 tablets = 1000 mg"
+  - one **weekly injection** (not in the pill box)
+- Peggy's list: not received yet. Mockups use example meds.
+- The mockup files use example names only. Regenerate the pictures with `node docs/mockups/shot.js`.
+- Apps Script pages run inside a frame. Browsers only play sound after one tap, so the tablet will need a one-time "Tap to start" after it restarts.
+- Fonts must be bundled with the app (Inter is the mockup font; it's free to use).
 
 ## Costs
 Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser, about US$9 once) would only be suggested if the free screen-pinning proves unreliable, and Tom would be asked first.
 
 ## Open decisions / extras
 - Peggy's medication list (Tom to send).
-- Ozempic: which day of the week?
+- Gene's weekly injection: which day of the week?
 - Calling: the best way for one tap to ring Tom (a fixed Meet link plus an alert, or opening Meet straight to Tom).
-- Home screen: photos with a meds strip along the side, or meds first? (Mockups in step 2.)
-- Missed-dose alert time: 30 minutes OK?
+- Missed-dose alert time: 30 minutes OK? (Asked, not answered yet.)
