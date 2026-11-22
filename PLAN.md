@@ -26,8 +26,7 @@ Tom gets an **email** when meds are added, changed or deleted, and when a dose h
 - **Wait timers:** a slot can say "nothing else for 2 hours". After it's ticked, the next slot shows *"Next meds at 9:12"*.
 - **Check boxes:** tapping one marks a dose as taken and records the time. Tapping again undoes it.
 - **Edit Meds:** a large button opens a simple form with name, dose, person, and slot or time picked with big tap buttons.
-  - Protected by a **PIN**. Tom can share the PIN with Gene and Peggy. Ticking doses never needs the PIN.
-  - The PIN is kept in Apps Script settings, never in the code or in chat. After 5 wrong tries, editing locks for 15 minutes.
+  - **No PIN** (Tom's decision, 22 Nov). Anyone using the tablet can edit; every change still emails Tom and has Undo.
   - Deleting asks "Are you sure?" first.
   - Every add, edit and delete emails Tom and is saved in **change history**, with an **Undo** button.
 - **Med lists are never stored in GitHub.** They live only in the parents' Google account. Tom (or Claude, from a list Tom gives) enters them through the Edit Meds form.
@@ -53,7 +52,7 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [x] **0. Plan agreed** (merged 2026-11-22)
 - [ ] **2. Meds screen** ← **IN PROGRESS**
   - [x] Home screen mockups made (`docs/mockups/`). Tom chose **C+A**: photos full screen most of the day, and the screen switches to the meds lists by itself when meds are due, then back to photos once everything is ticked. **No chime** on the switch unless it's part of the normal alarm.
-  - [ ] Build: Apps Script backend, today's lists, check boxes, PIN-protected Edit Meds, emails, history with undo, 90-day cleanup
+  - [ ] Build: Apps Script backend, today's lists, check boxes, Edit Meds (no PIN), emails, history with undo, 90-day cleanup
 - [ ] **1. Tablet cleanup guide:** debloat with ADB and set privacy settings
 - [ ] **3. Alarms and missed-dose emails** (talk with Tom first, see "Alarm options" below)
 - [ ] **4. Photo slideshow** from the Drive folder
@@ -69,7 +68,7 @@ Every option must be easy for older adults. Pick the simplest defaults and keep 
 - **Type:** gentle chime, louder bell, or a spoken message ("Gene, time for your morning pills")?
 - **Duration:** ring once, repeat every few minutes until ticked, or stop after a set time?
 - **Volume:** fixed loud volume set by the app, or follow the tablet's volume? Should it get louder if ignored?
-- **Mute / snooze:** a big "Snooze 10 min" button? A quiet-hours time (for example overnight)? Who can turn it off (needs the PIN?)
+- **Mute / snooze:** a big "Snooze 10 min" button? A quiet-hours time (for example overnight)? Who can turn it off?
 - The switch to the meds screen itself is silent (Tom, 2026-11-22).
 
 ## Notes for building step 2
