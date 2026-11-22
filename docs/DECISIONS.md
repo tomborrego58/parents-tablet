@@ -9,3 +9,7 @@
 - 2026-11-21: Medication lists never go in GitHub; they stay in the parents' Google account (health information).
 - 2026-11-21: No rooting the tablet; debloat with ADB so updates keep working and changes can be undone.
 - 2026-11-21: Deploy with clasp so GitHub holds the real copy of the code.
+- 2026-11-22: Build step 2 (meds screen) before step 1 (cleanup guide); cleanup only has to be done before the tablet goes to Gene and Peggy.
+- 2026-11-22: Home screen layout C+A: full-screen photos, auto-switch to both meds lists when meds are due, back to photos when all are ticked.
+- 2026-11-22: No chime when the screen switches to meds, unless it's part of the normal alarm. Alarm type, duration, volume and mute to be discussed before step 3.
+- 2026-11-22: Mockups in the repo use example med names only (no health data in GitHub).
