@@ -1,0 +1,81 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1280px;height:800px;overflow:hidden;font-family:Inter,Arial,sans-serif;background:#f4f1ea;color:#1b1b1b;position:relative}
+.top{height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:#fff;border-bottom:2px solid #e2ddd2}
+.top .t{font-size:34px;font-weight:800}
+.tag{position:absolute;top:18px;left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:20px;font-weight:800;padding:6px 12px;border-radius:8px;z-index:9}
+.foot{position:absolute;bottom:0;left:0;right:0;height:104px;display:flex;gap:16px;padding:14px 20px;background:#fff;border-top:2px solid #e2ddd2}
+.btn{flex:1;border-radius:18px;font-size:30px;font-weight:800;display:flex;align-items:center;justify-content:center;color:#fff}
+.green{background:#1f8a3b}.blue{background:#2f5fb3}.grey{background:#5b5b5b}.red{background:#c62828}
+.body{padding:18px 24px}
+.lbl{font-size:24px;font-weight:800;margin:8px 0 4px}
+.pill{display:inline-flex;align-items:center;border:4px solid #2f5fb3;border-radius:16px;padding:6px 22px;margin:0 10px 4px 0;font-size:28px;font-weight:800;color:#2f5fb3;background:#fff}
+.pill.on{background:#2f5fb3;color:#fff}
+.pill.p{border-color:#8a3fa8;color:#8a3fa8}.pill.p.on{background:#8a3fa8;color:#fff}
+.field{background:#fff;border:3px solid #444;border-radius:12px;padding:12px 16px;font-size:28px;font-weight:700}
+.row{display:flex;gap:18px}
+.row>div{flex:1}
+.pin{display:grid;grid-template-columns:repeat(3,150px);gap:14px;justify-content:center;margin-top:14px}
+.pin div{height:84px;border:4px solid #444;border-radius:18px;background:#fff;font-size:46px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.dots{text-align:center;font-size:64px;letter-spacing:22px;margin-top:10px}
+.item{display:flex;align-items:center;gap:16px;background:#fff;border-radius:16px;border:3px solid #ddd;padding:10px 16px;margin-bottom:10px}
+.item .n{font-size:26px;font-weight:800;flex:1}
+.item .d{font-size:20px;color:#444;font-weight:600}
+.item .eb{background:#2f5fb3;color:#fff;border-radius:12px;padding:12px 26px;font-size:26px;font-weight:800}
+.warn{background:#fde8e8;border:2px solid #c62828;color:#8e1515;border-radius:12px;padding:6px 10px;font-size:18px;font-weight:700;margin-top:4px}
+.dlg{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}
+.dlg .c{background:#fff;border-radius:24px;padding:36px 44px;width:820px;text-align:center}
+.dlg .q{font-size:40px;font-weight:800;margin-bottom:10px}
+.dlg .s{font-size:26px;color:#444;margin-bottom:26px}
+.dlg .bb{display:flex;gap:18px}
+.dlg .bb .btn{height:92px}
+.hist{font-size:22px;padding:10px 0;border-bottom:2px solid #eee;display:flex;justify-content:space-between;align-items:center}
+.hist .u{background:#e0b100;color:#1b1b1b;border-radius:10px;padding:8px 20px;font-weight:800;font-size:22px}
+
+.who{display:flex;gap:16px;margin-bottom:10px}
+.who div{flex:1;height:84px;border-radius:18px;font-size:42px;font-weight:900;display:flex;align-items:center;justify-content:center;border:5px solid}
+.who .g{border-color:#2f5fb3;color:#2f5fb3;background:#fff}.who .g.on{background:#2f5fb3;color:#fff}
+.who .pg{border-color:#8a3fa8;color:#8a3fa8;background:#fff}.who .pg.on{background:#8a3fa8;color:#fff}
+.dose{background:#fff4d6;border:4px solid #e0b100;border-radius:18px;padding:8px 18px 12px;margin-top:10px}
+.dose h4{font-size:30px;font-weight:900;margin-bottom:6px}
+.dose .row{align-items:flex-end}
+.dose .sm{font-size:22px;font-weight:800;margin-bottom:2px}
+.dose .eq{flex:none;width:auto;font-size:38px;font-weight:900;padding-bottom:8px}
+.dose .tot{flex:1.2;background:#1b1b1b;color:#fff;border-radius:12px;padding:8px 16px;font-size:36px;font-weight:900;text-align:center}
+.sched{background:#e4ecf8;border-radius:18px;padding:8px 18px 10px;margin-top:10px;border-left:12px solid #2f5fb3}
+.sched h4{font-size:32px;font-weight:900;color:#2f5fb3;margin:6px 0 4px}
+</style></head><body>
+<div id="app"></div>
+<script>
+const v=new URLSearchParams(location.search).get('v')||'list';
+const hdr=t=>`<div class="top"><div class="t">${t}</div><div class="t">8:15 am</div></div>`;
+const tag=t=>`<div class="tag">${t}</div>`;
+const item=(n,d,w)=>`<div class="item"><div class="n">${n}<div class="d">${d}</div>${w?`<div class="warn">${w}</div>`:''}</div><div class="eb">Change</div></div>`;
+let h='';
+if(v==='list'){h=`${tag('1 · Edit list')}${hdr('Edit Meds')}<div class="body">
+<div class="who"><div class="g on">Gene</div><div class="pg">Peggy</div></div>
+${item('Example med A 20 mg','1 capsule · Morning · every day')}
+${item('Example med B 25 mg','3 tablets = 75 mg · Morning · every day')}
+${item('Example med C 5 mg','1 tablet · Dinner · every day','Example warning note shows in red')}
+${item('Example injection','1 dose · Morning · every Sunday')}
+</div><div class="foot"><div class="btn green">+ Add a medicine</div><div class="btn blue">History</div><div class="btn grey" style="flex:.7">Done</div></div>`}
+if(v==='form'){h=`${tag('2 · Add / change')}${hdr('Change a medicine')}<div class="body" style="padding-top:12px">
+<div class="who" style="margin-bottom:6px"><div class="g on" style="height:70px">Gene</div><div class="pg" style="height:70px">Peggy</div></div>
+<div class="lbl" style="margin:0 0 2px;font-size:26px">Medicine name</div><div class="field" style="font-size:34px;padding:10px 16px">Example med B</div>
+<div class="dose"><h4>TOTAL DOSE</h4><div class="row"><div><div class="sm">How many tablets</div><div class="field" style="text-align:center;font-size:34px">3</div></div><div class="eq">×</div><div><div class="sm">Strength of each</div><div class="field" style="text-align:center;font-size:34px">25 mg</div></div><div class="eq">=</div><div class="tot">75 mg</div></div></div>
+<div class="sched"><div class="row"><div style="flex:1.5"><h4>WHEN</h4><span class="pill on">Wake up</span><span class="pill on">Morning</span><span class="pill">Dinner</span><span class="pill">Bedtime</span></div>
+<div><h4>HOW OFTEN</h4><span class="pill on">Every day</span><span class="pill">Once a week</span></div></div></div>
+</div><div class="foot"><div class="btn green">Save</div><div class="btn grey">Cancel</div><div class="btn red" style="flex:.7">Delete</div></div>`}
+if(v==='delete'){h=`${tag('3 · Delete check')}${hdr('Change a medicine')}<div class="body" style="opacity:.4"><div class="lbl">Example med B 25 mg</div></div>
+<div class="dlg"><div class="c"><div class="q">Delete Example med B?</div><div class="s">Gene · Morning. Tom gets an email. You can undo it in History.</div>
+<div class="bb"><div class="btn red">Yes, delete</div><div class="btn grey">No, keep it</div></div></div></div>`}
+if(v==='history'){h=`${tag('4 · History')}${hdr('History')}<div class="body">
+<div class="hist"><span>Today 8:10 · Gene · changed Example med B (3 tablets)</span><span class="u">Undo</span></div>
+<div class="hist"><span>Yesterday 6:30 pm · Peggy · added Example vitamin</span><span class="u">Undo</span></div>
+<div class="hist"><span>Nov 18 · Gene · deleted Example med X</span><span class="u">Undo</span></div>
+<div style="font-size:20px;color:#555;margin-top:14px">History is kept for 90 days.</div>
+</div><div class="foot"><div class="btn grey">Back</div></div>`}
+document.getElementById('app').innerHTML=h;
+</script></body></html>
