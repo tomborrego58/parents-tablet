@@ -14,3 +14,4 @@
 - 2026-11-22: No chime when the screen switches to meds, unless it's part of the normal alarm. Alarm type, duration, volume and mute to be discussed before step 3.
 - 2026-11-22: Mockups in the repo use example med names only (no health data in GitHub).
 - 2026-11-22: No PIN on Edit Meds (Tom reversed the 2026-11-21 PIN decision). Anyone using the tablet can edit; every change still emails Tom and has Undo.
+- 2026-11-22: Step 2 build split into 4 PRs (setup, data and screens, Edit Meds, history and cleanup).

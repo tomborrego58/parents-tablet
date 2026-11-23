@@ -52,7 +52,12 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [x] **0. Plan agreed** (merged 2026-11-22)
 - [ ] **2. Meds screen** ← **IN PROGRESS**
   - [x] Home screen mockups made (`docs/mockups/`). Tom chose **C+A**: photos full screen most of the day, and the screen switches to the meds lists by itself when meds are due, then back to photos once everything is ticked. **No chime** on the switch unless it's part of the normal alarm.
-  - [ ] Build: Apps Script backend, today's lists, check boxes, Edit Meds (no PIN), emails, history with undo, 90-day cleanup
+  - [ ] Build (4 small PRs, in order; plan agreed by Tom 2026-11-22):
+    - [ ] **2a. Setup:** Apps Script project in the tablet's Google account, linked to this repo with clasp. Tom: make the tablet Google account and run one clasp login on his PC (Claude walks him through it).
+    - [ ] **2b. Data and screens:** med storage, today's lists with check boxes, wait timers, C+A home screen.
+    - [ ] **2c. Edit Meds (no PIN):** list, form, delete check, email to Tom on every change.
+    - [ ] **2d. History and cleanup:** history with Undo, 90-day cleanup.
+  - Gene's real med list is entered through the Edit Meds form after 2c. It never goes in GitHub.
 - [ ] **1. Tablet cleanup guide:** debloat with ADB and set privacy settings
 - [ ] **3. Alarms and missed-dose emails** (talk with Tom first, see "Alarm options" below)
 - [ ] **4. Photo slideshow** from the Drive folder
