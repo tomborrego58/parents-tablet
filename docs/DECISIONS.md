@@ -15,3 +15,5 @@
 - 2026-11-22: Mockups in the repo use example med names only (no health data in GitHub).
 - 2026-11-22: No PIN on Edit Meds (Tom reversed the 2026-11-21 PIN decision). Anyone using the tablet can edit; every change still emails Tom and has Undo.
 - 2026-11-22: Step 2 build split into 4 PRs (setup, data and screens, Edit Meds, history and cleanup).
+- 2026-11-23: Gene's weekly injection is Saturday.
+- 2026-11-23: Peggy's schedule: Morning + Bedtime slots, 2x/week med on Monday and Thursday, and show "As Needed" meds on screen.

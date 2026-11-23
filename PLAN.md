@@ -53,11 +53,11 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [ ] **2. Meds screen** ← **IN PROGRESS**
   - [x] Home screen mockups made (`docs/mockups/`). Tom chose **C+A**: photos full screen most of the day, and the screen switches to the meds lists by itself when meds are due, then back to photos once everything is ticked. **No chime** on the switch unless it's part of the normal alarm.
   - [ ] Build (4 small PRs, in order; plan agreed by Tom 2026-11-22):
-    - [ ] **2a. Setup:** Apps Script project in the tablet's Google account, linked to this repo with clasp. Tom: make the tablet Google account and run one clasp login on his PC (Claude walks him through it).
+    - [x] **2a. Setup:** Apps Script project in the tablet's Google account, linked to this repo with clasp. Tom: make the tablet Google account and run one clasp login on his PC (Claude walks him through it).
     - [ ] **2b. Data and screens:** med storage, today's lists with check boxes, wait timers, C+A home screen.
     - [ ] **2c. Edit Meds (no PIN):** list, form, delete check, email to Tom on every change.
     - [ ] **2d. History and cleanup:** history with Undo, 90-day cleanup.
-  - Gene's real med list is entered through the Edit Meds form after 2c. It never goes in GitHub.
+  - Gene's and Peggy's real med lists are entered through the Edit Meds form after 2c. They never go in GitHub.
 - [ ] **1. Tablet cleanup guide:** debloat with ADB and set privacy settings
 - [ ] **3. Alarms and missed-dose emails** (talk with Tom first, see "Alarm options" below)
 - [ ] **4. Photo slideshow** from the Drive folder
@@ -65,7 +65,7 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [ ] **6. Tablet setup and handover:** always-on screen, app pinning, a one-page "how to use it" sheet for Gene and Peggy
 
 ## Next steps (where to pick up)
-1. Build step 2 (meds screen) using layout C+A from `docs/mockups/`.
+1. Build **2b. Data and screens** (med storage, today's lists with check boxes, wait timers, C+A home screen from `docs/mockups/`), then 2c and 2d.
 2. Then step 1 (tablet cleanup guide), then steps 3 to 6.
 
 ## Alarm options: discuss with Tom before step 3
@@ -84,8 +84,14 @@ Every option must be easy for older adults. Pick the simplest defaults and keep 
   - a **red hazardous-handling warning** on one med
   - notes like "empty stomach", "after food", "may take with snack"
   - doses shown as "4 tablets = 1000 mg"
-  - one **weekly injection** (not in the pill box)
-- Peggy's list: not received yet. Mockups use example meds.
+  - one **weekly injection** on **Saturday** (not in the pill box)
+- Peggy's med list came from Tom as photos (23 Nov 2026). It is **not** in the repo (health data). What it needs from the app:
+  - two daily slots (Morning, Bedtime)
+  - an **As Needed** section shown on screen
+  - one **2x/week** med (**Monday and Thursday**)
+  - a **red pre-dose warning** ("Check HR + BP before taking; hold for HR < 60 BPM")
+  - notes like "take before meals", "do not crush, chew, or split"
+  - (Tom confirmed: 40 mg on evening cholesterol med; Morning for Baby Aspirin.)
 - The mockup files use example names only. Regenerate the pictures with `node docs/mockups/shot.js`.
 - Apps Script pages run inside a frame. Browsers only play sound after one tap, so the tablet will need a one-time "Tap to start" after it restarts.
 - Fonts must be bundled with the app (Inter is the mockup font; it's free to use).
@@ -94,7 +100,5 @@ Every option must be easy for older adults. Pick the simplest defaults and keep 
 Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser, about US$9 once) would only be suggested if the free screen-pinning proves unreliable, and Tom would be asked first.
 
 ## Open decisions / extras
-- Peggy's medication list (Tom to send).
-- Gene's weekly injection: which day of the week?
 - Calling: the best way for one tap to ring Tom (a fixed Meet link plus an alert, or opening Meet straight to Tom).
 - Missed-dose alert time: 30 minutes OK? (Asked, not answered yet.)
