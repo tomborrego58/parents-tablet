@@ -1,9 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const data = require('../src/Data.js');
+const alerts = require('../src/AlertsAndPhotos.js');
 
-function installMockProps(initial = {}) {
+// Expose Data.js helpers globally so AlertsAndPhotos.js can call them just like Apps Script global scope
+Object.assign(global, data);
+
+function installMockServices(initial = {}) {
   const store = { ...initial };
+  const sentEmails = [];
   global.PropertiesService = {
     getScriptProperties() {
       return {
@@ -17,7 +22,10 @@ function installMockProps(initial = {}) {
       return { waitLock() {}, releaseLock() {} };
     }
   };
-  return store;
+  global.MailApp = {
+    sendEmail(opts) { sentEmails.push(opts); }
+  };
+  return { store, sentEmails };
 }
 
 test('isMedScheduledForDate handles daily, weekly (Sat), days (Mon/Thu), and prn', () => {
@@ -40,7 +48,7 @@ test('isMedScheduledForDate handles daily, weekly (Sat), days (Mon/Thu), and prn
 });
 
 test('toggleMedDose records and undoes dose timestamps in PropertiesService', () => {
-  installMockProps();
+  installMockServices();
   const now = new Date(2026, 10, 23, 8, 5, 0);
 
   const res1 = data.toggleMedDose('m1', '2026-11-23', now);
@@ -55,13 +63,77 @@ test('toggleMedDose records and undoes dose timestamps in PropertiesService', ()
   assert.equal(res2.todayLogs.m1, undefined);
 });
 
-test('seedExampleData populates slots and example meds without throwing', () => {
-  installMockProps();
-  const counts = data.seedExampleData();
-  assert.equal(counts.slots, 6);
-  assert.equal(counts.meds, 10);
+test('saveMed, saveSlot, deleteMed, and undoHistory work with history & notifications', () => {
+  installMockServices();
+  data.seedExampleData();
+  const now = new Date(2026, 10, 23, 10, 0, 0);
 
-  const state = data.getAppState(new Date(2026, 10, 23, 9, 0, 0));
-  assert.equal(state.slots.length, 6);
-  assert.equal(state.meds.length, 10);
+  const s1 = data.saveMed({
+    person: 'peggy',
+    slotId: 'p-am',
+    name: 'Example New Med',
+    strength: '10 mg',
+    dose: '1 tablet',
+    freq: 'daily'
+  }, now);
+  assert.equal(s1.meds.length, 11);
+  assert.equal(s1.history.length, 1);
+  assert.match(s1.history[0].summary, /Added Peggy: Example New Med/);
+
+  const s2 = data.saveSlot({ id: 'p-am', time: '08:30' }, now);
+  const pAm = s2.slots.find((s) => s.id === 'p-am');
+  assert.equal(pAm.time, '08:30');
+
+  const added = s1.meds.find((m) => m.name === 'Example New Med');
+  const s3 = data.deleteMed(added.id, now);
+  assert.equal(s3.meds.length, 10);
+
+  // Undo the delete
+  const delHistId = s3.history[0].id;
+  const s4 = data.undoHistory(delHistId, now);
+  assert.equal(s4.meds.length, 11);
+});
+
+test('pruneOldData removes logs, alerts, and history older than 90 days', () => {
+  const { store } = installMockServices();
+  const now = new Date(2026, 10, 23, 12, 0, 0);
+  store[data.STORE_KEYS.LOGS] = JSON.stringify({
+    '2026-01-01': { m1: { takenAt: '08:00', ts: 1 } },
+    '2026-11-22': { m1: { takenAt: '08:00', ts: 2 } }
+  });
+  store[data.STORE_KEYS.HISTORY] = JSON.stringify([
+    { id: 'old', ts: new Date(2026, 0, 1).getTime(), summary: 'old' },
+    { id: 'new', ts: new Date(2026, 10, 22).getTime(), summary: 'new' }
+  ]);
+
+  data.pruneOldData(now);
+  const logs = JSON.parse(store[data.STORE_KEYS.LOGS]);
+  const hist = JSON.parse(store[data.STORE_KEYS.HISTORY]);
+  assert.equal(logs['2026-01-01'], undefined);
+  assert.ok(logs['2026-11-22']);
+  assert.equal(hist.length, 1);
+  assert.equal(hist[0].id, 'new');
+});
+
+test('quiet hours, Drive folder ID extraction, missed-dose (2h) & 9pm summary work', () => {
+  const { sentEmails } = installMockServices();
+  data.seedExampleData();
+  data.saveConfig({ alertEmail: 'test@example.com', quietStart: '21:00', quietEnd: '08:00', missedDelayMin: 120, dailySummaryHour: 21 });
+
+  assert.equal(alerts.isInQuietHours_(new Date(2026, 10, 23, 22, 0, 0), '21:00', '08:00'), true);
+  assert.equal(alerts.isInQuietHours_(new Date(2026, 10, 23, 7, 30, 0), '21:00', '08:00'), true);
+  assert.equal(alerts.isInQuietHours_(new Date(2026, 10, 23, 10, 30, 0), '21:00', '08:00'), false);
+  assert.equal(alerts.extractDriveFolderId_('https://drive.google.com/drive/folders/1AbC_xyz-99?usp=sharing'), '1AbC_xyz-99');
+
+  // At 10:30 am, 08:00 Morning slot is 2.5h overdue -> sends missed-dose emails (no duplicates on second run)
+  alerts.runScheduledChecks(new Date(2026, 10, 23, 10, 30, 0));
+  const missedCount = sentEmails.length;
+  assert.ok(missedCount >= 1);
+  alerts.runScheduledChecks(new Date(2026, 10, 23, 10, 45, 0));
+  assert.equal(sentEmails.length, missedCount);
+
+  // At 9:05 pm (inside quiet hours, >= dailySummaryHour 21) -> sends 1 daily summary email
+  alerts.runScheduledChecks(new Date(2026, 10, 23, 21, 5, 0));
+  assert.equal(sentEmails.length, missedCount + 1);
+  assert.match(sentEmails[sentEmails.length - 1].subject, /Daily Summary/);
 });

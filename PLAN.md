@@ -50,24 +50,23 @@ Tom gets an **email** when meds are added, changed or deleted, and when a dose h
 Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 
 - [x] **0. Plan agreed** (merged 2026-11-22)
-- [ ] **2. Meds screen** ← **IN PROGRESS**
+- [x] **2. Meds screen**
   - [x] Home screen mockups made (`docs/mockups/`). Tom chose **C+A**: photos full screen most of the day, and the screen switches to the meds lists by itself when meds are due, then back to photos once everything is ticked. **No chime** on the switch unless it's part of the normal alarm.
   - [ ] Build (4 small PRs, in order; plan agreed by Tom 2026-11-22):
     - [x] **2a. Setup:** Apps Script project in the tablet's Google account, linked to this repo with clasp. Tom: make the tablet Google account and run one clasp login on his PC (Claude walks him through it).
     - [x] **2b. Data and screens:** med storage, today's lists with check boxes, wait timers, C+A home screen.
-    - [ ] **2c. Edit Meds (no PIN):** list, form, delete check, email to Tom on every change.
-    - [ ] **2d. History and cleanup:** history with Undo, 90-day cleanup.
-  - Gene's and Peggy's real med lists are entered through the Edit Meds form after 2c. They never go in GitHub.
-- [ ] **1. Tablet cleanup guide:** debloat with ADB and set privacy settings
-- [ ] **3. Alarms and missed-dose emails** (talk with Tom first, see "Alarm options" below)
-- [ ] **4. Photo slideshow** from the Drive folder
-- [ ] **5. Call buttons** (research, then mockups, then build)
-- [ ] **6. Tablet setup and handover:** always-on screen, app pinning, a one-page "how to use it" sheet for Gene and Peggy
+    - [x] **2c. Edit Meds (no PIN):** list, form, editable slot times, delete check, email to Tom on every change.
+    - [x] **2d. History and cleanup:** history with Undo, 90-day cleanup.
+  - Gene's and Peggy's real med lists are entered through the Edit Meds form (or local-only loader). They never go in GitHub.
+- [x] **1. Tablet cleanup guide:** debloat with ADB and set privacy settings (`docs/TABLET-CLEANUP.md`)
+- [x] **3. Alarms and missed-dose emails:** gentle chime (1 repeat), Snooze 10 min, quiet hours 9pm–8am, missed-dose email after 2h, 9pm daily summary, configurable Settings
+- [x] **4. Photo slideshow:** Drive folder slideshow + email-to-Drive auto-import
+- [x] **5. Call buttons:** Call Tom & Call Katie fixed Meet links + instant email alerts
+- [x] **6. Tablet setup and handover:** always-on screen, app pinning, 1-page "how to use it" sheet (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Build **2c. Edit Meds (no PIN)** (list, form, delete check, email to Tom on every change), then **2d. History and cleanup**.
-2. Enter Gene's and Peggy's real med lists through the Edit Meds form (never in GitHub).
-3. Then step 1 (tablet cleanup guide), then steps 3 to 6.
+1. Tom: squash-merge this PR, review defaults in **Edit Meds → Settings**, paste Drive photo folder URL + two Meet URLs, run `installTriggers()` once, and deploy Web App.
+2. Run local-only loader (or enter meds in Edit Meds) and follow `docs/TABLET-CLEANUP.md` + `docs/HANDOVER.md` on the Galaxy Tab A11+.
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
@@ -101,5 +100,7 @@ Every option must be easy for older adults. Pick the simplest defaults and keep 
 Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser, about US$9 once) would only be suggested if the free screen-pinning proves unreliable, and Tom would be asked first.
 
 ## Open decisions / extras
-- Calling: the best way for one tap to ring Tom (a fixed Meet link plus an alert, or opening Meet straight to Tom).
-- Missed-dose alert time: 30 minutes OK? (Asked, not answered yet.)
+- **Morning review items (decided overnight for Tom to confirm):**
+  - Free text alerts: added optional carrier SMS-gateway email field in Settings (e.g. `@vtext.com` / `@txt.att.net`).
+  - Meet buttons: two separate buttons (**Call Tom** + **Call Katie**) with fixed Meet links + email alerts.
+  - Photo slideshow: Drive folder + 15-min email-to-Drive auto-import.

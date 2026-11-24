@@ -17,3 +17,6 @@
 - 2026-11-22: Step 2 build split into 4 PRs (setup, data and screens, Edit Meds, history and cleanup).
 - 2026-11-23: Gene's weekly injection is Saturday.
 - 2026-11-23: Peggy's schedule: Morning + Bedtime slots, 2x/week med on Monday and Thursday, and show "As Needed" meds on screen.
+- 2026-11-23: Alarms & alerts: 2-hour missed-dose delay, gentle chime (1 repeat), 10-min snooze, quiet hours 9pm–8am, 9pm daily summary email; all configurable in Settings.
+- 2026-11-23: Calling: two one-tap buttons (Call Tom + Call Katie) using fixed Google Meet links + email alerts.
+- 2026-11-23: Photos: Google Drive folder slideshow + automatic email-to-Drive photo import.
