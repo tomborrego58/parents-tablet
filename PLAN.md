@@ -54,7 +54,7 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
   - [x] Home screen mockups made (`docs/mockups/`). Tom chose **C+A**: photos full screen most of the day, and the screen switches to the meds lists by itself when meds are due, then back to photos once everything is ticked. **No chime** on the switch unless it's part of the normal alarm.
   - [ ] Build (4 small PRs, in order; plan agreed by Tom 2026-11-22):
     - [x] **2a. Setup:** Apps Script project in the tablet's Google account, linked to this repo with clasp. Tom: make the tablet Google account and run one clasp login on his PC (Claude walks him through it).
-    - [ ] **2b. Data and screens:** med storage, today's lists with check boxes, wait timers, C+A home screen.
+    - [x] **2b. Data and screens:** med storage, today's lists with check boxes, wait timers, C+A home screen.
     - [ ] **2c. Edit Meds (no PIN):** list, form, delete check, email to Tom on every change.
     - [ ] **2d. History and cleanup:** history with Undo, 90-day cleanup.
   - Gene's and Peggy's real med lists are entered through the Edit Meds form after 2c. They never go in GitHub.
@@ -65,8 +65,9 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [ ] **6. Tablet setup and handover:** always-on screen, app pinning, a one-page "how to use it" sheet for Gene and Peggy
 
 ## Next steps (where to pick up)
-1. Build **2b. Data and screens** (med storage, today's lists with check boxes, wait timers, C+A home screen from `docs/mockups/`), then 2c and 2d.
-2. Then step 1 (tablet cleanup guide), then steps 3 to 6.
+1. Build **2c. Edit Meds (no PIN)** (list, form, delete check, email to Tom on every change), then **2d. History and cleanup**.
+2. Enter Gene's and Peggy's real med lists through the Edit Meds form (never in GitHub).
+3. Then step 1 (tablet cleanup guide), then steps 3 to 6.
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
