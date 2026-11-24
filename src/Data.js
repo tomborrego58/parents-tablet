@@ -1,18 +1,38 @@
 /**
- * Data storage and scheduling logic for Parents' Tablet.
- * Uses PropertiesService (script properties) so all data stays in the tablet's Google account.
- * No real medication lists are stored in this file.
+ * Data storage, scheduling, edit history (with Undo), settings, and 90-day cleanup
+ * for Parents' Tablet. Uses PropertiesService only; no real health data or emails
+ * are stored in this file.
  */
 
 var STORE_KEYS = {
   SLOTS: 'pt_slots_v1',
   MEDS: 'pt_meds_v1',
-  LOGS: 'pt_logs_v1'
+  LOGS: 'pt_logs_v1',
+  HISTORY: 'pt_history_v1',
+  CONFIG: 'pt_config_v1',
+  ALERTS: 'pt_alert_state_v1'
 };
 
-/**
- * Returns storage backend (Apps Script PropertiesService, or overridable for tests).
- */
+var RETENTION_DAYS = 90;
+
+function getDefaultConfig_() {
+  return {
+    alertEmail: '',
+    smsGatewayEmail: '',
+    katieEmail: '',
+    meetUrlTom: '',
+    meetUrlKatie: '',
+    driveFolderId: '',
+    quietStart: '21:00',
+    quietEnd: '08:00',
+    missedDelayMin: 120,
+    soundType: 'chime',
+    soundRepeat: 1,
+    snoozeMin: 10,
+    dailySummaryHour: 21
+  };
+}
+
 function getProps_() {
   return PropertiesService.getScriptProperties();
 }
@@ -31,9 +51,10 @@ function writeJson_(props, key, value) {
   props.setProperty(key, JSON.stringify(value));
 }
 
-/**
- * Formats a Date into YYYY-MM-DD in script timezone (or local time in tests).
- */
+function clone_(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 function formatDateKey_(date) {
   if (typeof Utilities !== 'undefined' && typeof Session !== 'undefined') {
     return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
@@ -44,9 +65,6 @@ function formatDateKey_(date) {
   return y + '-' + m + '-' + d;
 }
 
-/**
- * Formats a Date into HH:MM (24h) in script timezone (or local time in tests).
- */
 function formatTimeHHMM_(date) {
   if (typeof Utilities !== 'undefined' && typeof Session !== 'undefined') {
     return Utilities.formatDate(date, Session.getScriptTimeZone(), 'HH:mm');
@@ -54,6 +72,10 @@ function formatTimeHHMM_(date) {
   var h = String(date.getHours()).padStart(2, '0');
   var min = String(date.getMinutes()).padStart(2, '0');
   return h + ':' + min;
+}
+
+function makeId_(prefix) {
+  return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
 }
 
 /**
@@ -73,8 +95,99 @@ function isMedScheduledForDate(med, date) {
   return false;
 }
 
+function getConfig_(props) {
+  var saved = readJson_(props, STORE_KEYS.CONFIG, {});
+  var defaults = getDefaultConfig_();
+  var out = {};
+  Object.keys(defaults).forEach(function (k) {
+    out[k] = (saved[k] !== undefined && saved[k] !== null) ? saved[k] : defaults[k];
+  });
+  return out;
+}
+
+function saveConfig(configInput, nowOpt) {
+  var props = getProps_();
+  var cur = getConfig_(props);
+  var allowed = Object.keys(getDefaultConfig_());
+  allowed.forEach(function (k) {
+    if (configInput && configInput[k] !== undefined) {
+      cur[k] = configInput[k];
+    }
+  });
+  cur.missedDelayMin = Math.max(15, parseInt(cur.missedDelayMin, 10) || 120);
+  cur.soundRepeat = Math.max(0, Math.min(5, parseInt(cur.soundRepeat, 10) || 1));
+  cur.snoozeMin = Math.max(1, Math.min(60, parseInt(cur.snoozeMin, 10) || 10));
+  cur.dailySummaryHour = Math.max(0, Math.min(23, parseInt(cur.dailySummaryHour, 10) || 21));
+  writeJson_(props, STORE_KEYS.CONFIG, cur);
+  return cur;
+}
+
 /**
- * Loads current slots, meds, and today's tick-off logs.
+ * Removes logs, alert flags, and history entries older than RETENTION_DAYS (90 days).
+ */
+function pruneOldData(nowOpt) {
+  var props = getProps_();
+  var now = nowOpt || new Date();
+  var cutoffMs = now.getTime() - RETENTION_DAYS * 86400000;
+  var cutoffKey = formatDateKey_(new Date(cutoffMs));
+
+  var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
+  var logsChanged = false;
+  Object.keys(allLogs).forEach(function (k) {
+    if (k < cutoffKey) {
+      delete allLogs[k];
+      logsChanged = true;
+    }
+  });
+  if (logsChanged) writeJson_(props, STORE_KEYS.LOGS, allLogs);
+
+  var alerts = readJson_(props, STORE_KEYS.ALERTS, {});
+  var alertsChanged = false;
+  Object.keys(alerts).forEach(function (k) {
+    if (k < cutoffKey) {
+      delete alerts[k];
+      alertsChanged = true;
+    }
+  });
+  if (alertsChanged) writeJson_(props, STORE_KEYS.ALERTS, alerts);
+
+  var history = readJson_(props, STORE_KEYS.HISTORY, []);
+  var filtered = history.filter(function (h) { return (h.ts || 0) >= cutoffMs; });
+  if (filtered.length !== history.length) {
+    writeJson_(props, STORE_KEYS.HISTORY, filtered);
+  }
+  return { cutoffKey: cutoffKey };
+}
+
+function recordHistoryAndNotify_(props, summary, prevSlots, prevMeds, nowOpt) {
+  var now = nowOpt || new Date();
+  var cutoffMs = now.getTime() - RETENTION_DAYS * 86400000;
+  var history = readJson_(props, STORE_KEYS.HISTORY, [])
+    .filter(function (h) { return (h.ts || 0) >= cutoffMs; });
+
+  history.unshift({
+    id: makeId_('h'),
+    ts: now.getTime(),
+    dateKey: formatDateKey_(now),
+    timeStr: formatTimeHHMM_(now),
+    summary: summary,
+    undone: false,
+    prevSlots: clone_(prevSlots),
+    prevMeds: clone_(prevMeds)
+  });
+
+  if (history.length > 50) history = history.slice(0, 50);
+  writeJson_(props, STORE_KEYS.HISTORY, history);
+
+  var cfg = getConfig_(props);
+  if (cfg.alertEmail && typeof sendChangeEmail_ === 'function') {
+    sendChangeEmail_(cfg, summary);
+  }
+  return history;
+}
+
+/**
+ * Loads current slots, meds, today's tick-off logs, settings, and recent history.
  */
 function getAppState(nowOpt) {
   var props = getProps_();
@@ -85,25 +198,39 @@ function getAppState(nowOpt) {
   var meds = readJson_(props, STORE_KEYS.MEDS, []);
   var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
   var todayLogs = allLogs[todayKey] || {};
+  var history = readJson_(props, STORE_KEYS.HISTORY, []).map(function (h) {
+    return {
+      id: h.id,
+      dateKey: h.dateKey,
+      timeStr: h.timeStr,
+      summary: h.summary,
+      undone: !!h.undone
+    };
+  });
 
   return {
     slots: slots,
     meds: meds,
     todayLogs: todayLogs,
     todayKey: todayKey,
-    serverNowMs: now.getTime()
+    serverNowMs: now.getTime(),
+    config: getConfig_(props),
+    history: history
   };
 }
 
-/**
- * Toggles a medication dose for a given dateKey (defaults to today).
- * Uses LockService when available to prevent concurrent tap races.
- */
-function toggleMedDose(medId, dateKeyOpt, nowOpt) {
+function withLock_(fn) {
   var lock = (typeof LockService !== 'undefined') ? LockService.getScriptLock() : null;
   if (lock) lock.waitLock(10000);
-
   try {
+    return fn();
+  } finally {
+    if (lock) lock.releaseLock();
+  }
+}
+
+function toggleMedDose(medId, dateKeyOpt, nowOpt) {
+  return withLock_(function () {
     var props = getProps_();
     var now = nowOpt || new Date();
     var dateKey = dateKeyOpt || formatDateKey_(now);
@@ -127,14 +254,120 @@ function toggleMedDose(medId, dateKeyOpt, nowOpt) {
       todayLogs: dayLogs,
       serverNowMs: now.getTime()
     };
-  } finally {
-    if (lock) lock.releaseLock();
-  }
+  });
+}
+
+function saveMed(medInput, nowOpt) {
+  return withLock_(function () {
+    var props = getProps_();
+    var now = nowOpt || new Date();
+    var slots = readJson_(props, STORE_KEYS.SLOTS, []);
+    var meds = readJson_(props, STORE_KEYS.MEDS, []);
+    var prevMeds = clone_(meds);
+
+    var clean = {
+      id: medInput.id || makeId_('m'),
+      person: medInput.person === 'peggy' ? 'peggy' : 'gene',
+      slotId: medInput.freq === 'prn' ? '' : (medInput.slotId || ''),
+      name: String(medInput.name || '').trim(),
+      strength: String(medInput.strength || '').trim(),
+      dose: String(medInput.dose || '').trim(),
+      note: String(medInput.note || '').trim(),
+      warning: String(medInput.warning || '').trim(),
+      freq: medInput.freq || 'daily',
+      days: Array.isArray(medInput.days) ? medInput.days.map(Number) : []
+    };
+    if (!clean.name) throw new Error('Medication name is required.');
+
+    var idx = meds.findIndex(function (m) { return m.id === clean.id; });
+    var verb = idx >= 0 ? 'Edited' : 'Added';
+    if (idx >= 0) {
+      meds[idx] = clean;
+    } else {
+      meds.push(clean);
+    }
+
+    writeJson_(props, STORE_KEYS.MEDS, meds);
+    var who = clean.person === 'peggy' ? 'Peggy' : 'Gene';
+    recordHistoryAndNotify_(props, verb + ' ' + who + ': ' + clean.name, slots, prevMeds, now);
+    return getAppState(now);
+  });
+}
+
+function deleteMed(medId, nowOpt) {
+  return withLock_(function () {
+    var props = getProps_();
+    var now = nowOpt || new Date();
+    var slots = readJson_(props, STORE_KEYS.SLOTS, []);
+    var meds = readJson_(props, STORE_KEYS.MEDS, []);
+    var prevMeds = clone_(meds);
+
+    var target = meds.find(function (m) { return m.id === medId; });
+    if (!target) return getAppState(now);
+
+    meds = meds.filter(function (m) { return m.id !== medId; });
+    writeJson_(props, STORE_KEYS.MEDS, meds);
+
+    var who = target.person === 'peggy' ? 'Peggy' : 'Gene';
+    recordHistoryAndNotify_(props, 'Deleted ' + who + ': ' + target.name, slots, prevMeds, now);
+    return getAppState(now);
+  });
+}
+
+function saveSlot(slotInput, nowOpt) {
+  return withLock_(function () {
+    var props = getProps_();
+    var now = nowOpt || new Date();
+    var slots = readJson_(props, STORE_KEYS.SLOTS, []);
+    var meds = readJson_(props, STORE_KEYS.MEDS, []);
+    var prevSlots = clone_(slots);
+
+    var idx = slots.findIndex(function (s) { return s.id === slotInput.id; });
+    if (idx < 0) throw new Error('Slot not found.');
+
+    var updated = clone_(slots[idx]);
+    if (slotInput.time) updated.time = String(slotInput.time).trim();
+    if (slotInput.name) updated.name = String(slotInput.name).trim();
+    if (slotInput.note !== undefined) updated.note = String(slotInput.note || '').trim();
+    if (slotInput.waitMinutes !== undefined) {
+      var wm = parseInt(slotInput.waitMinutes, 10);
+      if (wm > 0) updated.waitMinutes = wm;
+      else delete updated.waitMinutes;
+    }
+
+    slots[idx] = updated;
+    writeJson_(props, STORE_KEYS.SLOTS, slots);
+
+    var who = updated.person === 'peggy' ? 'Peggy' : 'Gene';
+    recordHistoryAndNotify_(props, 'Updated ' + who + ' slot ' + updated.name + ' to ' + updated.time, prevSlots, meds, now);
+    return getAppState(now);
+  });
+}
+
+function undoHistory(historyId, nowOpt) {
+  return withLock_(function () {
+    var props = getProps_();
+    var now = nowOpt || new Date();
+    var history = readJson_(props, STORE_KEYS.HISTORY, []);
+    var entry = history.find(function (h) { return h.id === historyId; });
+    if (!entry || entry.undone) return getAppState(now);
+
+    var curSlots = readJson_(props, STORE_KEYS.SLOTS, []);
+    var curMeds = readJson_(props, STORE_KEYS.MEDS, []);
+
+    writeJson_(props, STORE_KEYS.SLOTS, entry.prevSlots || curSlots);
+    writeJson_(props, STORE_KEYS.MEDS, entry.prevMeds || curMeds);
+
+    entry.undone = true;
+    writeJson_(props, STORE_KEYS.HISTORY, history);
+
+    recordHistoryAndNotify_(props, 'Undid: ' + entry.summary, curSlots, curMeds, now);
+    return getAppState(now);
+  });
 }
 
 /**
- * Seeds purely fictional example data for testing step 2b before Edit Meds (2c) is built.
- * Safe to run from the Apps Script editor; uses no real medication names.
+ * Seeds purely fictional example data for testing without exposing real health data.
  */
 function seedExampleData() {
   var props = getProps_();
@@ -166,11 +399,23 @@ function seedExampleData() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     STORE_KEYS: STORE_KEYS,
+    RETENTION_DAYS: RETENTION_DAYS,
+    getDefaultConfig_: getDefaultConfig_,
     isMedScheduledForDate: isMedScheduledForDate,
     getAppState: getAppState,
     toggleMedDose: toggleMedDose,
+    saveMed: saveMed,
+    deleteMed: deleteMed,
+    saveSlot: saveSlot,
+    undoHistory: undoHistory,
+    saveConfig: saveConfig,
+    pruneOldData: pruneOldData,
     seedExampleData: seedExampleData,
     formatDateKey_: formatDateKey_,
-    formatTimeHHMM_: formatTimeHHMM_
+    formatTimeHHMM_: formatTimeHHMM_,
+    getProps_: getProps_,
+    getConfig_: getConfig_,
+    readJson_: readJson_,
+    writeJson_: writeJson_
   };
 }

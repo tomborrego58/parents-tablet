@@ -1,16 +1,29 @@
 <script>
 (function () {
+  var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
   var state = {
     slots: [],
     meds: [],
     todayLogs: {},
     todayKey: '',
-    view: 'photos',        // 'photos' (Screen C) or 'meds' (Screen A)
-    manualView: null,      // 'photos' | 'meds' | null
-    dismissedDueKey: ''    // tracks which due-slot set user manually switched away from
+    config: {},
+    history: [],
+    photos: [],
+    photoIdx: 0,
+    view: 'photos',        // 'photos' | 'meds' | 'edit'
+    editTab: 'list',       // 'list' | 'form' | 'history' | 'settings'
+    editMed: null,
+    deleteTarget: null,
+    manualView: null,
+    dismissedDueKey: '',
+    audioUnlocked: false,
+    lastChimedDueKey: '',
+    snoozedUntilMs: 0
   };
 
   var toastTimer = null;
+  var audioCtx = null;
 
   function showToast(msg) {
     var el = document.getElementById('toast');
@@ -19,7 +32,7 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
       el.classList.remove('show');
-    }, 2600);
+    }, 2800);
   }
 
   function esc(str) {
@@ -40,49 +53,102 @@
 
   function formatHHMM12(hhmm) {
     if (!hhmm || hhmm.indexOf(':') === -1) return hhmm || '';
-    var parts = hhmm.split(':');
-    var h = parseInt(parts[0], 10);
-    var m = parts[1];
+    var p = hhmm.split(':');
+    var h = parseInt(p[0], 10);
     var ampm = h >= 12 ? 'pm' : 'am';
-    var h12 = h % 12 || 12;
-    return h12 + ':' + m + ' ' + ampm;
+    return (h % 12 || 12) + ':' + p[1] + ' ' + ampm;
   }
 
   function formatDateLine(date) {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long'
-    });
+    return date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
   }
 
   function parseTodayTime(now, hhmm) {
-    var parts = (hhmm || '00:00').split(':');
-    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
-      parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, 0, 0);
-    return d.getTime();
+    var p = (hhmm || '00:00').split(':');
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+      parseInt(p[0], 10) || 0, parseInt(p[1], 10) || 0, 0, 0).getTime();
+  }
+
+  function isInQuietHours(now) {
+    var cfg = state.config || {};
+    var qs = (cfg.quietStart || '21:00').split(':');
+    var qe = (cfg.quietEnd || '08:00').split(':');
+    var cur = now.getHours() * 60 + now.getMinutes();
+    var sMin = (parseInt(qs[0], 10) || 21) * 60 + (parseInt(qs[1], 10) || 0);
+    var eMin = (parseInt(qe[0], 10) || 8) * 60 + (parseInt(qe[1], 10) || 0);
+    if (sMin === eMin) return false;
+    return sMin > eMin ? (cur >= sMin || cur < eMin) : (cur >= sMin && cur < eMin);
+  }
+
+  function unlockAudio() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx && !audioCtx) audioCtx = new Ctx();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      state.audioUnlocked = true;
+    } catch (e) {}
+  }
+
+  function playChimeOnce(type) {
+    if (type === 'voice' && window.speechSynthesis) {
+      var u = new SpeechSynthesisUtterance('Time for medications.');
+      window.speechSynthesis.speak(u);
+      return;
+    }
+    try {
+      unlockAudio();
+      if (!audioCtx) return;
+      var notes = type === 'bell' ? [660, 880, 660] : [523.25, 659.25];
+      var nowT = audioCtx.currentTime;
+      notes.forEach(function (freq, idx) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = type === 'bell' ? 'triangle' : 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.001, nowT + idx * 0.28);
+        gain.gain.exponentialRampToValueAtTime(0.28, nowT + idx * 0.28 + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, nowT + idx * 0.28 + 0.55);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(nowT + idx * 0.28);
+        osc.stop(nowT + idx * 0.28 + 0.6);
+      });
+    } catch (e) {}
+  }
+
+  function maybePlayAlarm(dueKey, now) {
+    if (!dueKey) {
+      state.lastChimedDueKey = '';
+      return;
+    }
+    if (now.getTime() < state.snoozedUntilMs) return;
+    if (isInQuietHours(now)) return;
+    if (state.lastChimedDueKey === dueKey) return;
+
+    state.lastChimedDueKey = dueKey;
+    var cfg = state.config || {};
+    var type = cfg.soundType || 'chime';
+    var repeat = cfg.soundRepeat !== undefined ? parseInt(cfg.soundRepeat, 10) : 1;
+    playChimeOnce(type);
+    for (var i = 1; i <= repeat; i++) {
+      setTimeout(function () { playChimeOnce(type); }, i * 4500);
+    }
   }
 
   function isMedScheduledToday(med, now) {
-    if (!med || !med.freq) return false;
+    if (!med || !med.freq || med.freq === 'prn') return false;
     if (med.freq === 'daily') return true;
-    if (med.freq === 'prn') return false; // PRN handled separately
     if (med.freq === 'weekly' || med.freq === 'days') {
-      var dow = now.getDay();
-      return Array.isArray(med.days) && med.days.indexOf(dow) !== -1;
+      return Array.isArray(med.days) && med.days.indexOf(now.getDay()) !== -1;
     }
     return false;
   }
 
-  /**
-   * Computes slots, wait timers, and due status for one person ('gene' or 'peggy').
-   */
   function computePersonView(person, now) {
     var nowMs = now.getTime();
     var personSlots = state.slots
       .filter(function (s) { return s.person === person; })
       .sort(function (a, b) { return a.time.localeCompare(b.time); });
-
     var prnMeds = state.meds.filter(function (m) {
       return m.person === person && m.freq === 'prn';
     });
@@ -97,12 +163,11 @@
       var slotMeds = state.meds.filter(function (m) {
         return m.person === person && m.slotId === slot.id && isMedScheduledToday(m, now);
       });
-      if (slotMeds.length === 0) return;
+      if (!slotMeds.length) return;
 
       var allTicked = slotMeds.every(function (m) { return !!state.todayLogs[m.id]; });
       var maxTakenTs = 0;
       var lastTakenAt = '';
-
       slotMeds.forEach(function (m) {
         var log = state.todayLogs[m.id];
         if (log && log.ts >= maxTakenTs) {
@@ -114,36 +179,30 @@
       if (allTicked) {
         doneSlots.push({ slot: slot, takenAt: lastTakenAt });
         if (slot.waitMinutes && maxTakenTs > 0) {
-          var waitUntil = maxTakenTs + slot.waitMinutes * 60000;
-          if (nowMs < waitUntil && waitUntil > activeWaitUntil) {
-            activeWaitUntil = waitUntil;
+          var wu = maxTakenTs + slot.waitMinutes * 60000;
+          if (nowMs < wu && wu > activeWaitUntil) {
+            activeWaitUntil = wu;
             activeWaitMinutes = slot.waitMinutes;
           }
         }
         return;
       }
 
-      var baseMs = parseTodayTime(now, slot.time);
-      var effectiveMs = Math.max(baseMs, activeWaitUntil);
+      var effMs = Math.max(parseTodayTime(now, slot.time), activeWaitUntil);
       var entry = {
         slot: slot,
         meds: slotMeds,
-        effectiveMs: effectiveMs,
-        effectiveTimeStr: formatClock(new Date(effectiveMs)),
-        isDue: nowMs >= effectiveMs
+        effectiveMs: effMs,
+        effectiveTimeStr: formatClock(new Date(effMs)),
+        isDue: nowMs >= effMs
       };
-
-      if (entry.isDue) {
-        dueSlots.push(entry);
-      } else {
-        laterSlots.push(entry);
-      }
+      if (entry.isDue) dueSlots.push(entry);
+      else laterSlots.push(entry);
     });
 
-    // If nothing is due right now, show the very next upcoming slot (like mockup Gene 9:02)
     var visibleSlots = dueSlots.slice();
     var remainingLater = laterSlots.slice();
-    if (visibleSlots.length === 0 && remainingLater.length > 0) {
+    if (!visibleSlots.length && remainingLater.length) {
       visibleSlots.push(remainingLater.shift());
     }
 
@@ -164,6 +223,8 @@
     peggyView.dueSlots.forEach(function (d) { dueIds.push('p:' + d.slot.id); });
     var dueKey = dueIds.join(',');
 
+    if (state.view === 'edit') return dueKey;
+
     if (dueKey) {
       if (state.manualView === 'photos' && state.dismissedDueKey === dueKey) {
         state.view = 'photos';
@@ -174,33 +235,23 @@
       }
     } else {
       state.dismissedDueKey = '';
-      if (state.manualView === 'meds') {
-        state.view = 'meds';
-      } else {
-        state.view = 'photos';
-      }
+      state.view = state.manualView === 'meds' ? 'meds' : 'photos';
     }
     return dueKey;
   }
 
   function renderMedRow(med, isPrn) {
     var log = state.todayLogs[med.id];
-    var onClass = log ? ' on' : '';
-    var checkMark = log ? '✓' : '';
     var details = [];
     if (med.dose) details.push(med.dose);
     if (med.note) details.push(med.note);
-    if (log && log.takenAt) {
-      details.push((isPrn ? 'last used ' : 'taken ') + formatHHMM12(log.takenAt));
-    }
+    if (log && log.takenAt) details.push((isPrn ? 'last used ' : 'taken ') + formatHHMM12(log.takenAt));
     var title = med.name + (med.strength ? ' ' + med.strength : '');
-    var warnHtml = med.warning
-      ? '<div class="warn">⚠ ' + esc(med.warning) + '</div>'
-      : '';
+    var warnHtml = med.warning ? '<div class="warn">⚠ ' + esc(med.warning) + '</div>' : '';
 
     return (
       '<div class="med" data-med-id="' + esc(med.id) + '">' +
-        '<div class="box' + onClass + '">' + checkMark + '</div>' +
+        '<div class="box' + (log ? ' on' : '') + '">' + (log ? '✓' : '') + '</div>' +
         '<div class="med-body">' +
           '<div class="mname">' + esc(title) + '</div>' +
           '<div class="mdose">' + esc(details.join(' · ')) + '</div>' +
@@ -211,57 +262,216 @@
   }
 
   function renderColumn(person, label, pView) {
-    var html = '<div class="col ' + person + '">';
-    html += '<div class="name">' + label + '</div>';
-
-    var hasAny = pView.doneSlots.length || pView.visibleSlots.length ||
-      pView.laterSlots.length || pView.prnMeds.length;
-
-    if (!hasAny) {
-      html += '<div class="empty-msg">No medications scheduled yet.</div>';
-      return html + '</div>';
+    var html = '<div class="col ' + person + '"><div class="name">' + label + '</div>';
+    if (!pView.doneSlots.length && !pView.visibleSlots.length && !pView.laterSlots.length && !pView.prnMeds.length) {
+      return html + '<div class="empty-msg">No medications scheduled yet. Tap Edit Meds below to add.</div></div>';
     }
-
     pView.doneSlots.forEach(function (d) {
-      html += '<div class="done">✓ ' + esc(d.slot.name) + ': done at ' +
-        esc(formatHHMM12(d.takenAt)) + '</div>';
+      html += '<div class="done">✓ ' + esc(d.slot.name) + ': done at ' + esc(formatHHMM12(d.takenAt)) + '</div>';
     });
-
     if (pView.activeWaitUntil > 0) {
       var hrs = Math.round(pView.activeWaitMinutes / 60 * 10) / 10;
-      var waitLabel = hrs === 2 ? '2-hour wait' : (pView.activeWaitMinutes + '-min wait');
-      html += '<div class="wait">⏳ Next meds at <b>' +
-        esc(formatClock(new Date(pView.activeWaitUntil))) +
-        '</b> (' + esc(waitLabel) + ')</div>';
+      var wl = hrs === 2 ? '2-hour wait' : (pView.activeWaitMinutes + '-min wait');
+      html += '<div class="wait">⏳ Next meds at <b>' + esc(formatClock(new Date(pView.activeWaitUntil))) + '</b> (' + esc(wl) + ')</div>';
     }
-
     pView.visibleSlots.forEach(function (entry) {
-      html += '<div class="slot">' + esc(entry.slot.name) +
-        ' <span>' + esc(entry.effectiveTimeStr) + '</span></div>';
-      if (entry.slot.note) {
-        html += '<div class="slot-note">' + esc(entry.slot.note) + '</div>';
-      }
-      entry.meds.forEach(function (m) {
-        html += renderMedRow(m, false);
-      });
+      html += '<div class="slot">' + esc(entry.slot.name) + ' <span>' + esc(entry.effectiveTimeStr) + '</span></div>';
+      if (entry.slot.note) html += '<div class="slot-note">' + esc(entry.slot.note) + '</div>';
+      entry.meds.forEach(function (m) { html += renderMedRow(m, false); });
     });
-
-    if (pView.laterSlots.length > 0) {
+    if (pView.laterSlots.length) {
       var parts = pView.laterSlots.map(function (l) {
         return esc(l.slot.name) + ' ' + esc(l.effectiveTimeStr) + ' (' + l.meds.length + ')';
       });
       html += '<div class="later">Later: ' + parts.join(' · ') + '</div>';
     }
-
-    if (pView.prnMeds.length > 0) {
+    if (pView.prnMeds.length) {
       html += '<div class="prn-wrap"><div class="prn-title">As Needed</div>';
-      pView.prnMeds.forEach(function (m) {
-        html += renderMedRow(m, true);
-      });
+      pView.prnMeds.forEach(function (m) { html += renderMedRow(m, true); });
       html += '</div>';
     }
-
     return html + '</div>';
+  }
+
+  function renderEditScreen() {
+    var tab = state.editTab;
+    var tabsHtml =
+      '<div class="tabs">' +
+        '<button class="tab' + (tab === 'list' ? ' on' : '') + '" data-tab="list">Med List &amp; Times</button>' +
+        '<button class="tab' + (tab === 'form' ? ' on' : '') + '" data-tab="form">' + (state.editMed && state.editMed.id ? 'Edit Med' : '+ Add Med') + '</button>' +
+        '<button class="tab' + (tab === 'history' ? ' on' : '') + '" data-tab="history">History</button>' +
+        '<button class="tab' + (tab === 'settings' ? ' on' : '') + '" data-tab="settings">Settings</button>' +
+      '</div>';
+
+    var body = '';
+    if (tab === 'list') body = renderEditListTab();
+    else if (tab === 'form') body = renderEditFormTab();
+    else if (tab === 'history') body = renderHistoryTab();
+    else if (tab === 'settings') body = renderSettingsTab();
+
+    var dlgHtml = '';
+    if (state.deleteTarget) {
+      dlgHtml =
+        '<div class="dlg"><div class="c">' +
+          '<div class="q">Delete ' + esc(state.deleteTarget.name) + '?</div>' +
+          '<div class="s">Are you sure? Tom will get an email, and you can undo from History.</div>' +
+          '<div class="bb">' +
+            '<button class="btn edit" id="dlg-cancel">Cancel</button>' +
+            '<button class="btn red" id="dlg-confirm">Yes, Delete</button>' +
+          '</div>' +
+        '</div></div>';
+    }
+
+    return (
+      '<div class="screen-edit">' +
+        '<div class="top"><div class="day">Edit Medications</div>' +
+          '<button class="sm-btn blue" id="btn-back-meds">Done</button>' +
+        '</div>' +
+        tabsHtml +
+        '<div class="edit-body">' + body + '</div>' +
+        dlgHtml +
+      '</div>'
+    );
+  }
+
+  function renderEditListTab() {
+    var html = '<div class="sec-title">Alarm Times</div>';
+    ['gene', 'peggy'].forEach(function (person) {
+      var label = person === 'gene' ? 'Gene' : 'Peggy';
+      var pSlots = state.slots.filter(function (s) { return s.person === person; })
+        .sort(function (a, b) { return a.time.localeCompare(b.time); });
+      pSlots.forEach(function (s) {
+        html +=
+          '<div class="item">' +
+            '<div class="n">' + label + ' — ' + esc(s.name) + '</div>' +
+            '<input type="time" class="field" style="width:180px" id="slot-time-' + esc(s.id) + '" value="' + esc(s.time) + '">' +
+            '<button class="sm-btn green" data-save-slot="' + esc(s.id) + '">Save Time</button>' +
+          '</div>';
+      });
+    });
+
+    ['gene', 'peggy'].forEach(function (person) {
+      var label = person === 'gene' ? "Gene's Medications" : "Peggy's Medications";
+      html += '<div class="sec-title">' + label + '</div>';
+      var pMeds = state.meds.filter(function (m) { return m.person === person; });
+      if (!pMeds.length) html += '<div class="empty-msg">No medications yet.</div>';
+      pMeds.forEach(function (m) {
+        var slot = state.slots.find(function (s) { return s.id === m.slotId; });
+        var sub = [m.strength, m.dose, m.freq === 'prn' ? 'As Needed' : (slot ? slot.name : ''), m.note].filter(Boolean).join(' · ');
+        html +=
+          '<div class="item">' +
+            '<div class="n">' + esc(m.name) + '<div class="d">' + esc(sub) + '</div></div>' +
+            '<button class="sm-btn blue" data-edit-med="' + esc(m.id) + '">Edit</button>' +
+            '<button class="sm-btn red" data-del-med="' + esc(m.id) + '">Delete</button>' +
+          '</div>';
+      });
+    });
+    return html;
+  }
+
+  function renderEditFormTab() {
+    var m = state.editMed || { person: 'gene', slotId: '', name: '', strength: '', dose: '', note: '', warning: '', freq: 'daily', days: [] };
+    var pSlots = state.slots.filter(function (s) { return s.person === m.person; })
+      .sort(function (a, b) { return a.time.localeCompare(b.time); });
+    if (!m.slotId && pSlots.length && m.freq !== 'prn') m.slotId = pSlots[0].id;
+
+    var slotsHtml = pSlots.map(function (s) {
+      return '<button type="button" class="pill' + (m.slotId === s.id ? ' on' : '') + '" data-form-slot="' + esc(s.id) + '">' +
+        esc(s.name) + ' (' + esc(formatHHMM12(s.time)) + ')</button>';
+    }).join('');
+
+    var freqs = [
+      { k: 'daily', l: 'Every day' },
+      { k: 'weekly', l: 'Once a week' },
+      { k: 'days', l: 'Specific days' },
+      { k: 'prn', l: 'As Needed' }
+    ];
+    var freqHtml = freqs.map(function (f) {
+      return '<button type="button" class="pill' + (m.freq === f.k ? ' on' : '') + '" data-form-freq="' + f.k + '">' + f.l + '</button>';
+    }).join('');
+
+    var daysHtml = '';
+    if (m.freq === 'weekly' || m.freq === 'days') {
+      daysHtml = '<div class="lbl">Which day(s)?</div><div>' +
+        DAY_NAMES.map(function (dn, idx) {
+          var on = Array.isArray(m.days) && m.days.indexOf(idx) !== -1;
+          return '<button type="button" class="pill' + (on ? ' on' : '') + '" data-form-day="' + idx + '">' + dn + '</button>';
+        }).join('') + '</div>';
+    }
+
+    return (
+      '<div class="who">' +
+        '<button type="button" class="g' + (m.person === 'gene' ? ' on' : '') + '" data-form-person="gene">Gene</button>' +
+        '<button type="button" class="pg' + (m.person === 'peggy' ? ' on' : '') + '" data-form-person="peggy">Peggy</button>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">Medication Name</div><input class="field" id="f-name" value="' + esc(m.name) + '" placeholder="e.g. Lisinopril"></div>' +
+        '<div><div class="lbl">Strength</div><input class="field" id="f-strength" value="' + esc(m.strength) + '" placeholder="e.g. 20 mg"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">How much to take</div><input class="field" id="f-dose" value="' + esc(m.dose) + '" placeholder="e.g. 1 tablet"></div>' +
+        '<div><div class="lbl">Note (optional)</div><input class="field" id="f-note" value="' + esc(m.note) + '" placeholder="e.g. after food"></div>' +
+      '</div>' +
+      '<div class="lbl">Red Warning Note (optional)</div>' +
+      '<input class="field" id="f-warning" value="' + esc(m.warning) + '" placeholder="e.g. Check HR before taking">' +
+      '<div class="lbl">Schedule</div><div>' + freqHtml + '</div>' +
+      daysHtml +
+      (m.freq !== 'prn' ? '<div class="lbl">Time Slot</div><div>' + slotsHtml + '</div>' : '') +
+      '<div style="margin-top:20px;display:flex;gap:14px">' +
+        '<button class="btn call" style="height:76px" id="btn-save-med">Save Medication</button>' +
+      '</div>'
+    );
+  }
+
+  function renderHistoryTab() {
+    if (!state.history || !state.history.length) {
+      return '<div class="empty-msg">No changes recorded yet.</div>';
+    }
+    return state.history.map(function (h) {
+      return (
+        '<div class="hist">' +
+          '<div><b>' + esc(h.summary) + '</b><div class="d">' + esc(h.dateKey) + ' at ' + esc(formatHHMM12(h.timeStr)) + '</div></div>' +
+          (h.undone
+            ? '<span style="color:#666;font-weight:700">Undone</span>'
+            : '<button class="sm-btn amber" data-undo="' + esc(h.id) + '">Undo</button>') +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderSettingsTab() {
+    var c = state.config || {};
+    return (
+      '<div class="row">' +
+        '<div><div class="lbl">Tom Alert Email</div><input class="field" id="s-alertEmail" value="' + esc(c.alertEmail) + '"></div>' +
+        '<div><div class="lbl">Optional Text Gateway Email (e.g. number@vtext.com)</div><input class="field" id="s-smsGatewayEmail" value="' + esc(c.smsGatewayEmail) + '"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">Katie Email</div><input class="field" id="s-katieEmail" value="' + esc(c.katieEmail) + '"></div>' +
+        '<div><div class="lbl">Drive Photo Folder ID or URL</div><input class="field" id="s-driveFolderId" value="' + esc(c.driveFolderId) + '"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">Google Meet URL (Tom)</div><input class="field" id="s-meetUrlTom" value="' + esc(c.meetUrlTom) + '"></div>' +
+        '<div><div class="lbl">Google Meet URL (Katie)</div><input class="field" id="s-meetUrlKatie" value="' + esc(c.meetUrlKatie) + '"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">Quiet Hours Start</div><input type="time" class="field" id="s-quietStart" value="' + esc(c.quietStart || '21:00') + '"></div>' +
+        '<div><div class="lbl">Quiet Hours End</div><input type="time" class="field" id="s-quietEnd" value="' + esc(c.quietEnd || '08:00') + '"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">Missed-Dose Email Delay (minutes)</div><input type="number" class="field" id="s-missedDelayMin" value="' + esc(c.missedDelayMin || 120) + '"></div>' +
+        '<div><div class="lbl">Daily Summary Hour (0–23, 21 = 9pm)</div><input type="number" class="field" id="s-dailySummaryHour" value="' + esc(c.dailySummaryHour !== undefined ? c.dailySummaryHour : 21) + '"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">Alarm Sound</div><select class="field" id="s-soundType">' +
+          '<option value="chime"' + (c.soundType === 'chime' ? ' selected' : '') + '>Gentle Chime</option>' +
+          '<option value="bell"' + (c.soundType === 'bell' ? ' selected' : '') + '>Louder Bell</option>' +
+          '<option value="voice"' + (c.soundType === 'voice' ? ' selected' : '') + '>Spoken Message</option>' +
+        '</select></div>' +
+        '<div><div class="lbl">Snooze Minutes</div><input type="number" class="field" id="s-snoozeMin" value="' + esc(c.snoozeMin || 10) + '"></div>' +
+      '</div>' +
+      '<div style="margin-top:20px"><button class="btn call" style="height:76px" id="btn-save-settings">Save Settings</button></div>'
+    );
   }
 
   function render() {
@@ -271,44 +481,54 @@
     var dueKey = updateAutoView(geneView, peggyView);
     var app = document.getElementById('app');
 
-    if (state.view === 'photos') {
+    if (state.view !== 'edit') {
+      maybePlayAlarm(dueKey, now);
+    }
+
+    if (state.view === 'edit') {
+      app.innerHTML = renderEditScreen();
+    } else if (state.view === 'photos') {
       var bannerText = '';
-      if (peggyView.dueSlots.length > 0) {
-        bannerText = '💊 Peggy: ' + peggyView.dueSlots[0].slot.name + ' meds now';
-      } else if (geneView.dueSlots.length > 0) {
-        bannerText = '💊 Gene: ' + geneView.dueSlots[0].slot.name + ' meds now';
-      }
-      var bannerHtml = bannerText
-        ? '<div class="banner" id="open-meds-banner"><div>' + esc(bannerText) +
-          '</div><div class="go">Open meds</div></div>'
-        : '';
+      if (peggyView.dueSlots.length) bannerText = '💊 Peggy: ' + peggyView.dueSlots[0].slot.name + ' meds now';
+      else if (geneView.dueSlots.length) bannerText = '💊 Gene: ' + geneView.dueSlots[0].slot.name + ' meds now';
+
+      var photoHtml = (state.photos && state.photos.length)
+        ? '<img class="ph-img" src="' + esc(state.photos[state.photoIdx % state.photos.length].url) + '" alt="Family photo">'
+        : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in Edit Meds → Settings</span></div>';
 
       app.innerHTML =
         '<div class="screen-photos">' +
-          '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">(Drive photos added in Step 4)</span></div>' +
+          photoHtml +
           '<div class="ph-clock">' +
             '<div class="time">' + esc(formatClock(now)) + '</div>' +
             '<div class="date">' + esc(formatDateLine(now)) + '</div>' +
+            (!state.audioUnlocked ? '<div class="sound-pill" id="btn-unlock-sound">🔊 Tap once to enable sound</div>' : '') +
           '</div>' +
           '<div class="ph-actions">' +
-            '<button class="btn call" id="btn-call">📞 Call Tom</button>' +
+            '<button class="btn call" id="btn-call-tom">📞 Call Tom</button>' +
+            '<button class="btn call-katie" id="btn-call-katie">📞 Call Katie</button>' +
             '<button class="btn photos" id="btn-to-meds">Meds</button>' +
           '</div>' +
-          bannerHtml +
+          (bannerText ? '<div class="banner" id="open-meds-banner"><div>' + esc(bannerText) + '</div><div class="go">Open meds</div></div>' : '') +
         '</div>';
     } else {
+      var showAlarmBar = !!dueKey && now.getTime() >= state.snoozedUntilMs && !isInQuietHours(now);
+      var snoozeMin = (state.config && state.config.snoozeMin) || 10;
+      var alarmBarHtml = showAlarmBar
+        ? '<div class="alarm-bar"><div>🔔 Time for medications</div><button class="snooze-btn" id="btn-snooze">Snooze ' + snoozeMin + ' min</button></div>'
+        : '';
+
       app.innerHTML =
         '<div class="screen-meds">' +
-          '<div class="top">' +
-            '<div class="day">' + esc(formatDateLine(now)) + '</div>' +
-            '<div class="clock">' + esc(formatClock(now)) + '</div>' +
-          '</div>' +
+          '<div class="top"><div class="day">' + esc(formatDateLine(now)) + '</div><div class="clock">' + esc(formatClock(now)) + '</div></div>' +
+          alarmBarHtml +
           '<div class="cols">' +
             renderColumn('gene', 'Gene', geneView) +
             renderColumn('peggy', 'Peggy', peggyView) +
           '</div>' +
           '<div class="foot">' +
-            '<button class="btn call" id="btn-call">📞 Call Tom</button>' +
+            '<button class="btn call" id="btn-call-tom">📞 Call Tom</button>' +
+            '<button class="btn call-katie" id="btn-call-katie">📞 Call Katie</button>' +
             '<button class="btn photos" id="btn-to-photos">Photos</button>' +
             '<button class="btn edit" id="btn-edit">Edit Meds</button>' +
           '</div>' +
@@ -318,69 +538,267 @@
     bindEvents(dueKey);
   }
 
+  function syncFormInputs() {
+    if (!state.editMed) return;
+    var n = document.getElementById('f-name');
+    if (n) state.editMed.name = n.value;
+    var s = document.getElementById('f-strength');
+    if (s) state.editMed.strength = s.value;
+    var d = document.getElementById('f-dose');
+    if (d) state.editMed.dose = d.value;
+    var nt = document.getElementById('f-note');
+    if (nt) state.editMed.note = nt.value;
+    var w = document.getElementById('f-warning');
+    if (w) state.editMed.warning = w.value;
+  }
+
+  function applyStateResponse(res) {
+    if (!res) return;
+    state.slots = res.slots || [];
+    state.meds = res.meds || [];
+    state.todayLogs = res.todayLogs || {};
+    state.todayKey = res.todayKey || '';
+    if (res.config) state.config = res.config;
+    if (res.history) state.history = res.history;
+  }
+
   function bindEvents(dueKey) {
     var medEls = document.querySelectorAll('.med[data-med-id]');
-    for (var i = 0; i < medEls.length; i++) {
-      medEls[i].addEventListener('click', onMedTap);
-    }
+    for (var i = 0; i < medEls.length; i++) medEls[i].addEventListener('click', onMedTap);
+
+    var unlockEl = document.getElementById('btn-unlock-sound');
+    if (unlockEl) unlockEl.addEventListener('click', function () { unlockAudio(); render(); showToast('Sound enabled'); });
+
+    var snoozeEl = document.getElementById('btn-snooze');
+    if (snoozeEl) snoozeEl.addEventListener('click', function () {
+      var mins = (state.config && state.config.snoozeMin) || 10;
+      state.snoozedUntilMs = Date.now() + mins * 60000;
+      render();
+      showToast('Snoozed for ' + mins + ' minutes');
+    });
 
     var toPhotos = document.getElementById('btn-to-photos');
-    if (toPhotos) {
-      toPhotos.addEventListener('click', function () {
-        state.manualView = 'photos';
-        state.dismissedDueKey = dueKey;
-        state.view = 'photos';
-        render();
-      });
-    }
+    if (toPhotos) toPhotos.addEventListener('click', function () {
+      unlockAudio();
+      state.manualView = 'photos';
+      state.dismissedDueKey = dueKey;
+      state.view = 'photos';
+      render();
+    });
 
     var toMeds = document.getElementById('btn-to-meds');
-    if (toMeds) {
-      toMeds.addEventListener('click', function () {
-        state.manualView = 'meds';
-        state.view = 'meds';
-        render();
-      });
-    }
+    if (toMeds) toMeds.addEventListener('click', function () {
+      unlockAudio();
+      state.manualView = 'meds';
+      state.view = 'meds';
+      render();
+    });
 
     var banner = document.getElementById('open-meds-banner');
-    if (banner) {
-      banner.addEventListener('click', function () {
-        state.manualView = null;
-        state.dismissedDueKey = '';
-        state.view = 'meds';
-        render();
-      });
-    }
+    if (banner) banner.addEventListener('click', function () {
+      unlockAudio();
+      state.manualView = null;
+      state.dismissedDueKey = '';
+      state.view = 'meds';
+      render();
+    });
 
-    var callBtn = document.getElementById('btn-call');
-    if (callBtn) {
-      callBtn.addEventListener('click', function () {
-        showToast('Call Tom button comes in Step 5');
-      });
-    }
+    var callTom = document.getElementById('btn-call-tom');
+    if (callTom) callTom.addEventListener('click', function () { triggerCall('tom'); });
+
+    var callKatie = document.getElementById('btn-call-katie');
+    if (callKatie) callKatie.addEventListener('click', function () { triggerCall('katie'); });
 
     var editBtn = document.getElementById('btn-edit');
-    if (editBtn) {
-      editBtn.addEventListener('click', function () {
-        showToast('Edit Meds comes in Step 2c');
+    if (editBtn) editBtn.addEventListener('click', function () {
+      unlockAudio();
+      state.view = 'edit';
+      state.editTab = 'list';
+      render();
+    });
+
+    var backBtn = document.getElementById('btn-back-meds');
+    if (backBtn) backBtn.addEventListener('click', function () {
+      state.view = 'meds';
+      state.manualView = 'meds';
+      render();
+    });
+
+    document.querySelectorAll('[data-tab]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var t = el.getAttribute('data-tab');
+        if (t === 'form' && !state.editMed) {
+          state.editMed = { person: 'gene', slotId: '', name: '', strength: '', dose: '', note: '', warning: '', freq: 'daily', days: [] };
+        }
+        state.editTab = t;
+        render();
       });
+    });
+
+    document.querySelectorAll('[data-save-slot]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var sid = el.getAttribute('data-save-slot');
+        var inp = document.getElementById('slot-time-' + sid);
+        if (!inp || !inp.value) return;
+        google.script.run.withSuccessHandler(function (res) {
+          applyStateResponse(res);
+          render();
+          showToast('Time saved');
+        }).apiSaveSlot({ id: sid, time: inp.value });
+      });
+    });
+
+    document.querySelectorAll('[data-edit-med]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var mid = el.getAttribute('data-edit-med');
+        var found = state.meds.find(function (m) { return m.id === mid; });
+        if (!found) return;
+        state.editMed = JSON.parse(JSON.stringify(found));
+        state.editTab = 'form';
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-del-med]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var mid = el.getAttribute('data-del-med');
+        state.deleteTarget = state.meds.find(function (m) { return m.id === mid; }) || null;
+        render();
+      });
+    });
+
+    var dlgCancel = document.getElementById('dlg-cancel');
+    if (dlgCancel) dlgCancel.addEventListener('click', function () { state.deleteTarget = null; render(); });
+
+    var dlgConfirm = document.getElementById('dlg-confirm');
+    if (dlgConfirm) dlgConfirm.addEventListener('click', function () {
+      var target = state.deleteTarget;
+      state.deleteTarget = null;
+      if (!target) return;
+      google.script.run.withSuccessHandler(function (res) {
+        applyStateResponse(res);
+        render();
+        showToast('Deleted ' + target.name);
+      }).apiDeleteMed(target.id);
+    });
+
+    document.querySelectorAll('[data-form-person]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        state.editMed.person = el.getAttribute('data-form-person');
+        state.editMed.slotId = '';
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-form-slot]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        state.editMed.slotId = el.getAttribute('data-form-slot');
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-form-freq]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        state.editMed.freq = el.getAttribute('data-form-freq');
+        if (!Array.isArray(state.editMed.days)) state.editMed.days = [];
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-form-day]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        var d = parseInt(el.getAttribute('data-form-day'), 10);
+        var arr = Array.isArray(state.editMed.days) ? state.editMed.days : [];
+        if (state.editMed.freq === 'weekly') {
+          state.editMed.days = [d];
+        } else {
+          var idx = arr.indexOf(d);
+          if (idx >= 0) arr.splice(idx, 1);
+          else arr.push(d);
+          state.editMed.days = arr;
+        }
+        render();
+      });
+    });
+
+    var saveMedBtn = document.getElementById('btn-save-med');
+    if (saveMedBtn) saveMedBtn.addEventListener('click', function () {
+      syncFormInputs();
+      if (!state.editMed.name.trim()) { showToast('Please enter a medication name'); return; }
+      google.script.run.withSuccessHandler(function (res) {
+        applyStateResponse(res);
+        state.editMed = null;
+        state.editTab = 'list';
+        render();
+        showToast('Medication saved');
+      }).apiSaveMed(state.editMed);
+    });
+
+    document.querySelectorAll('[data-undo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var hid = el.getAttribute('data-undo');
+        google.script.run.withSuccessHandler(function (res) {
+          applyStateResponse(res);
+          render();
+          showToast('Change undone');
+        }).apiUndoHistory(hid);
+      });
+    });
+
+    var saveSettingsBtn = document.getElementById('btn-save-settings');
+    if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', function () {
+      var payload = {
+        alertEmail: document.getElementById('s-alertEmail').value.trim(),
+        smsGatewayEmail: document.getElementById('s-smsGatewayEmail').value.trim(),
+        katieEmail: document.getElementById('s-katieEmail').value.trim(),
+        driveFolderId: document.getElementById('s-driveFolderId').value.trim(),
+        meetUrlTom: document.getElementById('s-meetUrlTom').value.trim(),
+        meetUrlKatie: document.getElementById('s-meetUrlKatie').value.trim(),
+        quietStart: document.getElementById('s-quietStart').value,
+        quietEnd: document.getElementById('s-quietEnd').value,
+        missedDelayMin: parseInt(document.getElementById('s-missedDelayMin').value, 10) || 120,
+        dailySummaryHour: parseInt(document.getElementById('s-dailySummaryHour').value, 10) || 21,
+        soundType: document.getElementById('s-soundType').value,
+        snoozeMin: parseInt(document.getElementById('s-snoozeMin').value, 10) || 10
+      };
+      google.script.run.withSuccessHandler(function (cfg) {
+        state.config = cfg;
+        loadPhotos();
+        showToast('Settings saved');
+      }).apiSaveConfig(payload);
+    });
+  }
+
+  function triggerCall(who) {
+    unlockAudio();
+    var label = who === 'katie' ? 'Katie' : 'Tom';
+    showToast('Calling ' + label + '…');
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (res) {
+        if (res && res.meetUrl) {
+          window.open(res.meetUrl, '_blank');
+        } else {
+          showToast('Alert sent to ' + label + ' (add Meet URL in Settings)');
+        }
+      }).apiNotifyCall(who);
     }
   }
 
   function onMedTap(e) {
+    unlockAudio();
     var medId = e.currentTarget.getAttribute('data-med-id');
     if (!medId) return;
-
     var prev = state.todayLogs[medId];
     var now = new Date();
-    if (prev) {
-      delete state.todayLogs[medId];
-    } else {
-      var h = String(now.getHours()).padStart(2, '0');
-      var m = String(now.getMinutes()).padStart(2, '0');
-      state.todayLogs[medId] = { takenAt: h + ':' + m, ts: now.getTime() };
-    }
+    if (prev) delete state.todayLogs[medId];
+    else state.todayLogs[medId] = {
+      takenAt: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
+      ts: now.getTime()
+    };
     render();
 
     if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -402,28 +820,38 @@
     }
   }
 
+  function loadPhotos() {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (list) {
+        state.photos = list || [];
+        if (state.view === 'photos') render();
+      }).apiGetPhotos();
+    }
+  }
+
   function loadState() {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (!res) return;
-          state.slots = res.slots || [];
-          state.meds = res.meds || [];
-          state.todayLogs = res.todayLogs || {};
-          state.todayKey = res.todayKey || '';
-          render();
-        })
-        .withFailureHandler(function () {
-          showToast('Connection error — retrying');
-        })
-        .apiGetState();
+      google.script.run.withSuccessHandler(function (res) {
+        applyStateResponse(res);
+        render();
+      }).apiGetState();
     } else {
       render();
     }
   }
 
   loadState();
-  setInterval(render, 15000);
+  loadPhotos();
+  setInterval(function () {
+    if (state.view !== 'edit') render();
+  }, 15000);
+  setInterval(function () {
+    if (state.view === 'photos' && state.photos.length > 1) {
+      state.photoIdx = (state.photoIdx + 1) % state.photos.length;
+      render();
+    }
+  }, 15000);
   setInterval(loadState, 60000);
+  setInterval(loadPhotos, 300000);
 })();
 </script>

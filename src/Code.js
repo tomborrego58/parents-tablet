@@ -20,3 +20,31 @@ function apiGetState() {
 function apiToggleDose(medId, dateKey) {
   return toggleMedDose(medId, dateKey);
 }
+
+function apiSaveMed(medInput) {
+  return saveMed(medInput);
+}
+
+function apiDeleteMed(medId) {
+  return deleteMed(medId);
+}
+
+function apiSaveSlot(slotInput) {
+  return saveSlot(slotInput);
+}
+
+function apiUndoHistory(historyId) {
+  return undoHistory(historyId);
+}
+
+function apiSaveConfig(configInput) {
+  return saveConfig(configInput);
+}
+
+function apiGetPhotos() {
+  return getDrivePhotos();
+}
+
+function apiNotifyCall(who) {
+  return notifyCall(who);
+}
