@@ -118,7 +118,16 @@ test('pruneOldData removes logs, alerts, and history older than 90 days', () => 
 test('quiet hours, Drive folder ID extraction, missed-dose (2h) & 9pm summary work', () => {
   const { sentEmails } = installMockServices();
   data.seedExampleData();
-  data.saveConfig({ alertEmail: 'test@example.com', quietStart: '21:00', quietEnd: '08:00', missedDelayMin: 120, dailySummaryHour: 21 });
+  data.saveConfig({ alertEmail: 'test@example.com', quietStart: '21:00', quietEnd: '08:00', missedDelayMin: 120, dailySummaryTime: '21:00', soundType: 'none', meetUrlMatt: 'https://meet.google.com/aaa', meetUrlLaura: 'https://meet.google.com/bbb' });
+
+  // Test clearPersonLogs clears only that person's logs
+  data.toggleMedDose('m1', '2026-11-23', new Date(2026, 10, 23, 7, 5, 0)); // gene
+  data.toggleMedDose('m6', '2026-11-23', new Date(2026, 10, 23, 8, 5, 0)); // peggy
+  const afterClear = data.clearPersonLogs('gene', '2026-11-23', new Date(2026, 10, 23, 8, 6, 0));
+  assert.equal(afterClear.todayLogs.m1, undefined);
+  assert.ok(afterClear.todayLogs.m6);
+  // Reset for missed-dose check
+  data.clearPersonLogs('peggy', '2026-11-23', new Date(2026, 10, 23, 8, 7, 0));
 
   assert.equal(alerts.isInQuietHours_(new Date(2026, 10, 23, 22, 0, 0), '21:00', '08:00'), true);
   assert.equal(alerts.isInQuietHours_(new Date(2026, 10, 23, 7, 30, 0), '21:00', '08:00'), true);

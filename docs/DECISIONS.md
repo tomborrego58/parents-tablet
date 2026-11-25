@@ -20,3 +20,5 @@
 - 2026-11-23: Alarms & alerts: 2-hour missed-dose delay, gentle chime (1 repeat), 10-min snooze, quiet hours 9pm–8am, 9pm daily summary email; all configurable in Settings.
 - 2026-11-23: Calling: two one-tap buttons (Call Tom + Call Katie) using fixed Google Meet links + email alerts.
 - 2026-11-23: Photos: Google Drive folder slideshow + automatic email-to-Drive photo import.
+- 2026-11-24: Web App deployed with access "Anyone" for now; revisit locking down to "Only myself" later.
+- 2026-11-24: Added 5-tab top navigation (Meds, To Do List & Notes, Call, Pictures, Settings), Quantity-First med display (reversible in Settings), Dark Mode (black) / Light Mode (Ravens purple), Clear button per person, Expand/Collapse completed slots, and pinned bottom Call bar.

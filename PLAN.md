@@ -65,8 +65,8 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [x] **6. Tablet setup and handover:** always-on screen, app pinning, 1-page "how to use it" sheet (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Tom: squash-merge this PR, review defaults in **Edit Meds → Settings**, paste Drive photo folder URL + two Meet URLs, run `installTriggers()` once, and deploy Web App.
-2. Run local-only loader (or enter meds in Edit Meds) and follow `docs/TABLET-CLEANUP.md` + `docs/HANDOVER.md` on the Galaxy Tab A11+.
+1. Tom: review the live Web App (`@11`) on the Galaxy Tab A11+ and paste Drive photo folder URL + Google Meet URLs in **⚙️ Settings**.
+2. Follow `docs/TABLET-CLEANUP.md` (ADB debloat + privacy) and `docs/HANDOVER.md` (Google Contacts for Meet incoming calls, always-on screen, app pinning, printable sheet).
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
@@ -100,6 +100,10 @@ Every option must be easy for older adults. Pick the simplest defaults and keep 
 Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser, about US$9 once) would only be suggested if the free screen-pinning proves unreliable, and Tom would be asked first.
 
 ## Open decisions / extras
+- **Reconsider later:** Web App access is currently set to **Anyone** (so it opens cleanly on tablet + phone); revisit locking down to **Only myself** later.
+- **Apps Script top banner:** Google forces the *"This application was created by a Google Apps Script user"* bar on free `/exec` pages. If it confuses Gene & Peggy, we can later host the HTML frontend on free GitHub Pages (with Apps Script as backend) so the banner disappears.
+- **Video messages inbox (future):** Easy-to-view inbox on the tablet for Tom, Katie, Matt, and Laura to leave short video messages.
+- **Meet buttons for Matt & Laura:** Meet URL fields are in Settings; add **Call Matt** / **Call Laura** buttons later if wanted.
 - **Morning review items (decided overnight for Tom to confirm):**
   - Free text alerts: added optional carrier SMS-gateway email field in Settings (e.g. `@vtext.com` / `@txt.att.net`).
   - Meet buttons: two separate buttons (**Call Tom** + **Call Katie**) with fixed Meet links + email alerts.

@@ -9,6 +9,8 @@
     todayKey: '',
     config: {},
     history: [],
+    todos: [],
+    notes: [],
     photos: [],
     photoIdx: 0,
     view: 'photos',        // 'photos' | 'meds' | 'edit'
@@ -19,7 +21,9 @@
     dismissedDueKey: '',
     audioUnlocked: false,
     lastChimedDueKey: '',
-    snoozedUntilMs: 0
+    snoozedUntilMs: 0,
+    expandedSlots: {},
+    showCallOthers: false
   };
 
   var toastTimer = null;
@@ -60,7 +64,12 @@
   }
 
   function formatDateLine(date) {
-    return date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
   }
 
   function parseTodayTime(now, hhmm) {
@@ -128,6 +137,7 @@
     state.lastChimedDueKey = dueKey;
     var cfg = state.config || {};
     var type = cfg.soundType || 'chime';
+    if (type === 'none') return;
     var repeat = cfg.soundRepeat !== undefined ? parseInt(cfg.soundRepeat, 10) : 1;
     playChimeOnce(type);
     for (var i = 1; i <= repeat; i++) {
@@ -177,7 +187,7 @@
       });
 
       if (allTicked) {
-        doneSlots.push({ slot: slot, takenAt: lastTakenAt });
+        doneSlots.push({ slot: slot, takenAt: lastTakenAt, meds: slotMeds });
         if (slot.waitMinutes && maxTakenTs > 0) {
           var wu = maxTakenTs + slot.waitMinutes * 60000;
           if (nowMs < wu && wu > activeWaitUntil) {
@@ -223,7 +233,9 @@
     peggyView.dueSlots.forEach(function (d) { dueIds.push('p:' + d.slot.id); });
     var dueKey = dueIds.join(',');
 
-    if (state.view === 'edit') return dueKey;
+    if (state.view === 'edit' || state.view === 'todo' || state.view === 'call' || state.view === 'settings') {
+      return dueKey;
+    }
 
     if (dueKey) {
       if (state.manualView === 'photos' && state.dismissedDueKey === dueKey) {
@@ -240,13 +252,48 @@
     return dueKey;
   }
 
+  function formatMedQtyFirst(med) {
+    var dose = String(med.dose || '').trim();
+    var strength = String(med.strength || '').trim();
+    var name = String(med.name || '').trim();
+    var m = dose.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+    if (!m) {
+      return name + (strength ? ', ' + strength : '') + (dose ? ', ' + dose : '');
+    }
+    var qty = m[1];
+    var rest = m[2].trim();
+    var totalMatch = rest.match(/^(.*?)=\s*(.+)$/);
+    var unit = totalMatch ? totalMatch[1].trim() : rest;
+    var total = totalMatch ? totalMatch[2].trim() : '';
+
+    // Normalize plural unit to singular when strength is present (e.g. "tablets" -> "tablet")
+    var unitSingular = unit.replace(/s$/i, '');
+    if (unitSingular.toLowerCase().indexOf('spray') === 0) {
+      unit = unit.replace(/^sprays?\s*/i, '').trim();
+    } else if (strength) {
+      unit = unitSingular;
+    }
+
+    var out = qty + 'x ' + name;
+    var tail = [];
+    if (strength && unit) tail.push(strength + ' ' + unit);
+    else if (strength) tail.push(strength);
+    else if (unit) tail.push(unit);
+    if (tail.length) out += ', ' + tail.join(' ');
+    if (total) out += ' (' + total + ' total)';
+    return out;
+  }
+
   function renderMedRow(med, isPrn) {
     var log = state.todayLogs[med.id];
+    var useQtyFirst = !state.config || state.config.medFormat !== 'classic';
     var details = [];
-    if (med.dose) details.push(med.dose);
+    if (!useQtyFirst && med.dose) details.push(med.dose);
     if (med.note) details.push(med.note);
     if (log && log.takenAt) details.push((isPrn ? 'last used ' : 'taken ') + formatHHMM12(log.takenAt));
-    var title = med.name + (med.strength ? ' ' + med.strength : '');
+    var title = useQtyFirst
+      ? formatMedQtyFirst(med)
+      : (med.name + (med.strength ? ' ' + med.strength : ''));
     var warnHtml = med.warning ? '<div class="warn">⚠ ' + esc(med.warning) + '</div>' : '';
 
     return (
@@ -254,7 +301,7 @@
         '<div class="box' + (log ? ' on' : '') + '">' + (log ? '✓' : '') + '</div>' +
         '<div class="med-body">' +
           '<div class="mname">' + esc(title) + '</div>' +
-          '<div class="mdose">' + esc(details.join(' · ')) + '</div>' +
+          (details.length ? '<div class="mdose">' + esc(details.join(' · ')) + '</div>' : '') +
           warnHtml +
         '</div>' +
       '</div>'
@@ -262,12 +309,34 @@
   }
 
   function renderColumn(person, label, pView) {
-    var html = '<div class="col ' + person + '"><div class="name">' + label + '</div>';
+    var html = '<div class="col ' + person + '">' +
+      '<div class="col-head">' +
+        '<div class="name">' + label + '</div>' +
+        '<button type="button" class="clear-btn" data-clear-person="' + person + '">Clear</button>' +
+      '</div>';
     if (!pView.doneSlots.length && !pView.visibleSlots.length && !pView.laterSlots.length && !pView.prnMeds.length) {
       return html + '<div class="empty-msg">No medications scheduled yet. Tap Edit Meds below to add.</div></div>';
     }
     pView.doneSlots.forEach(function (d) {
-      html += '<div class="done">✓ ' + esc(d.slot.name) + ': done at ' + esc(formatHHMM12(d.takenAt)) + '</div>';
+      var expKey = person + ':' + d.slot.id;
+      var isExp = !!state.expandedSlots[expKey];
+      html +=
+        '<div class="done-row">' +
+          '<div class="done-text"><span class="done-check">✓</span> ' + esc(d.slot.name) + ' - <span style="color:#1f8a3b">Completed</span> at ' + esc(formatHHMM12(d.takenAt)) + '</div>' +
+          '<button type="button" class="expand-btn" data-toggle-expand="' + esc(expKey) + '">' + (isExp ? '- Collapse' : '+ Expand') + '</button>' +
+        '</div>';
+      if (isExp && d.meds && d.meds.length) {
+        html += '<div class="done-list">';
+        d.meds.forEach(function (m) {
+          var title = m.name + (m.strength ? ' ' + m.strength : '');
+          html +=
+            '<div class="done-med" data-med-id="' + esc(m.id) + '">' +
+              '<span class="done-check">✓</span>' +
+              '<span class="mname">' + esc(title) + '</span>' +
+            '</div>';
+        });
+        html += '</div>';
+      }
     });
     if (pView.activeWaitUntil > 0) {
       var hrs = Math.round(pView.activeWaitMinutes / 60 * 10) / 10;
@@ -325,7 +394,10 @@
     return (
       '<div class="screen-edit">' +
         '<div class="top"><div class="day">Edit Medications</div>' +
-          '<button class="sm-btn blue" id="btn-back-meds">Done</button>' +
+          '<div style="display:flex;gap:10px">' +
+            '<button class="sm-btn green" id="btn-save-exit">Save and Exit</button>' +
+            '<button class="sm-btn" style="background:#5b5b5b" id="btn-exit">Exit</button>' +
+          '</div>' +
         '</div>' +
         tabsHtml +
         '<div class="edit-body">' + body + '</div>' +
@@ -439,42 +511,225 @@
     }).join('');
   }
 
+  function getMeetContactsFromConfig(c) {
+    if (Array.isArray(c.meetContacts) && c.meetContacts.length) {
+      return c.meetContacts;
+    }
+    return [
+      { name: 'Tom', url: c.meetUrlTom || '' },
+      { name: 'Katie', url: c.meetUrlKatie || '' },
+      { name: 'Matt', url: c.meetUrlMatt || '' },
+      { name: 'Laura', url: c.meetUrlLaura || '' }
+    ];
+  }
+
   function renderSettingsTab() {
     var c = state.config || {};
+    var sumTime = c.dailySummaryTime || ((c.dailySummaryHour !== undefined ? String(c.dailySummaryHour).padStart(2, '0') : '21') + ':00');
+    var contacts = getMeetContactsFromConfig(c);
+    var meetRowsHtml = contacts.map(function (mc, idx) {
+      return (
+        '<div class="meet-row" data-meet-idx="' + idx + '">' +
+          '<input class="field name-in" data-meet-name="' + idx + '" value="' + esc(mc.name) + '" placeholder="Name">' +
+          '<input class="field url-in" data-meet-url="' + idx + '" value="' + esc(mc.url) + '" placeholder="https://meet.google.com/...">' +
+          '<input class="field photo-in" data-meet-photo="' + idx + '" value="' + esc(mc.photoUrl || '') + '" placeholder="Photo URL (optional)">' +
+          (idx >= 4 ? '<button type="button" class="sm-btn red" data-del-meet="' + idx + '">✕</button>' : '') +
+        '</div>'
+      );
+    }).join('');
+
     return (
-      '<div class="row">' +
-        '<div><div class="lbl">Tom Alert Email</div><input class="field" id="s-alertEmail" value="' + esc(c.alertEmail) + '"></div>' +
-        '<div><div class="lbl">Optional Text Gateway Email (e.g. number@vtext.com)</div><input class="field" id="s-smsGatewayEmail" value="' + esc(c.smsGatewayEmail) + '"></div>' +
+      '<div class="settings-grid">' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Tom Alert Email</div><input class="field" id="s-alertEmail" value="' + esc(c.alertEmail) + '">' +
+          '<div class="lbl">Katie Alert Email</div><input class="field" id="s-katieEmail" value="' + esc(c.katieEmail) + '">' +
+          '<div class="lbl">Quiet Hours Start</div><input type="time" class="field" id="s-quietStart" value="' + esc(c.quietStart || '21:00') + '">' +
+          '<div class="lbl">Quiet Hours End</div><input type="time" class="field" id="s-quietEnd" value="' + esc(c.quietEnd || '08:00') + '">' +
+          '<div class="lbl">Daily Summary Email Time</div><input type="time" class="field" id="s-dailySummaryTime" value="' + esc(sumTime) + '">' +
+          '<div class="lbl">Missed-Dose Email Delay (minutes)</div><input type="number" class="field" id="s-missedDelayMin" value="' + esc(c.missedDelayMin || 120) + '">' +
+        '</div>' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Theme</div><select class="field" id="s-theme">' +
+            '<option value="light"' + (c.theme !== 'dark' ? ' selected' : '') + '>Light (Ravens Purple)</option>' +
+            '<option value="dark"' + (c.theme === 'dark' ? ' selected' : '') + '>Dark (Black)</option>' +
+          '</select>' +
+          '<div class="lbl">Med Display</div><select class="field" id="s-medFormat">' +
+            '<option value="qty_first"' + (c.medFormat !== 'classic' ? ' selected' : '') + '>Quantity First (4x Med, 250 mg)</option>' +
+            '<option value="classic"' + (c.medFormat === 'classic' ? ' selected' : '') + '>Classic (Name + Dose below)</option>' +
+          '</select>' +
+          '<div class="lbl">Alarm Sound</div><select class="field" id="s-soundType">' +
+            '<option value="none"' + (c.soundType === 'none' ? ' selected' : '') + '>None</option>' +
+            '<option value="chime"' + (c.soundType === 'chime' ? ' selected' : '') + '>Gentle Chime</option>' +
+            '<option value="bell"' + (c.soundType === 'bell' ? ' selected' : '') + '>Louder Bell</option>' +
+            '<option value="voice"' + (c.soundType === 'voice' ? ' selected' : '') + '>Spoken Message</option>' +
+          '</select>' +
+          '<div class="lbl">Snooze Minutes</div><input type="number" class="field" id="s-snoozeMin" value="' + esc(c.snoozeMin || 10) + '">' +
+        '</div>' +
       '</div>' +
-      '<div class="row">' +
-        '<div><div class="lbl">Katie Email</div><input class="field" id="s-katieEmail" value="' + esc(c.katieEmail) + '"></div>' +
-        '<div><div class="lbl">Drive Photo Folder ID or URL</div><input class="field" id="s-driveFolderId" value="' + esc(c.driveFolderId) + '"></div>' +
-      '</div>' +
-      '<div class="row">' +
-        '<div><div class="lbl">Google Meet URL (Tom)</div><input class="field" id="s-meetUrlTom" value="' + esc(c.meetUrlTom) + '"></div>' +
-        '<div><div class="lbl">Google Meet URL (Katie)</div><input class="field" id="s-meetUrlKatie" value="' + esc(c.meetUrlKatie) + '"></div>' +
-      '</div>' +
-      '<div class="row">' +
-        '<div><div class="lbl">Quiet Hours Start</div><input type="time" class="field" id="s-quietStart" value="' + esc(c.quietStart || '21:00') + '"></div>' +
-        '<div><div class="lbl">Quiet Hours End</div><input type="time" class="field" id="s-quietEnd" value="' + esc(c.quietEnd || '08:00') + '"></div>' +
-      '</div>' +
-      '<div class="row">' +
-        '<div><div class="lbl">Missed-Dose Email Delay (minutes)</div><input type="number" class="field" id="s-missedDelayMin" value="' + esc(c.missedDelayMin || 120) + '"></div>' +
-        '<div><div class="lbl">Daily Summary Hour (0–23, 21 = 9pm)</div><input type="number" class="field" id="s-dailySummaryHour" value="' + esc(c.dailySummaryHour !== undefined ? c.dailySummaryHour : 21) + '"></div>' +
-      '</div>' +
-      '<div class="row">' +
-        '<div><div class="lbl">Alarm Sound</div><select class="field" id="s-soundType">' +
-          '<option value="chime"' + (c.soundType === 'chime' ? ' selected' : '') + '>Gentle Chime</option>' +
-          '<option value="bell"' + (c.soundType === 'bell' ? ' selected' : '') + '>Louder Bell</option>' +
-          '<option value="voice"' + (c.soundType === 'voice' ? ' selected' : '') + '>Spoken Message</option>' +
-        '</select></div>' +
-        '<div><div class="lbl">Snooze Minutes</div><input type="number" class="field" id="s-snoozeMin" value="' + esc(c.snoozeMin || 10) + '"></div>' +
-      '</div>' +
-      '<div style="margin-top:20px"><button class="btn call" style="height:76px" id="btn-save-settings">Save Settings</button></div>'
+      '<hr class="settings-divider">' +
+      '<div class="settings-grid">' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Google Meet URLs</div>' +
+          meetRowsHtml +
+          '<div style="margin-top:8px"><button type="button" class="sm-btn blue" id="btn-add-meet">+ Add Meet Person</button></div>' +
+        '</div>' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Drive Photo Folder URL / ID</div><input class="field" id="s-driveFolderId" value="' + esc(c.driveFolderId) + '">' +
+          '<div class="lbl">Optional Text Gateway Email</div><input class="field" id="s-smsGatewayEmail" value="' + esc(c.smsGatewayEmail) + '">' +
+        '</div>' +
+      '</div>'
     );
   }
 
+  function normalizeAvatarUrl(raw) {
+    if (!raw) return '';
+    var s = String(raw).trim();
+    var m = s.match(/\/d\/([a-zA-Z0-9_-]+)/) || s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (m && s.indexOf('drive.google.com') !== -1) {
+      return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200';
+    }
+    return s;
+  }
+
+  function avatarHtml(name, photoUrl) {
+    var u = normalizeAvatarUrl(photoUrl);
+    if (u) {
+      return '<span class="avatar"><img src="' + esc(u) + '" alt=""></span>';
+    }
+    var ch = (name || '?').charAt(0).toUpperCase();
+    return '<span class="avatar">' + esc(ch) + '</span>';
+  }
+
+  function getContactByName(name) {
+    var contacts = getMeetContactsFromConfig(state.config || {});
+    return contacts.find(function (c) { return c.name && c.name.toLowerCase() === name.toLowerCase(); }) || {};
+  }
+
+  function renderCallOthersModal() {
+    if (!state.showCallOthers) return '';
+    var contacts = getMeetContactsFromConfig(state.config || {});
+    var baseNames = { tom: 1, katie: 1, laura: 1, matt: 1 };
+    var extras = contacts.filter(function (c) {
+      return c.name && !baseNames[c.name.toLowerCase()];
+    });
+    var listHtml = extras.length
+      ? extras.map(function (c, i) {
+          return '<button type="button" class="btn call" style="height:68px;margin-bottom:10px;width:100%" data-call-extra="' + esc(c.name) + '" data-call-url="' + esc(c.url || '') + '">' +
+            avatarHtml(c.name, c.photoUrl) + ' Call ' + esc(c.name) +
+          '</button>';
+        }).join('')
+      : '<div class="s">No extra people added yet. Add them in Settings → Google Meet URLs.</div>';
+
+    return (
+      '<div class="dlg"><div class="c">' +
+        '<div class="q">Call Others</div>' +
+        '<div style="margin:14px 0 20px">' + listHtml + '</div>' +
+        '<button type="button" class="btn edit" style="height:66px;width:100%" id="btn-close-others">Close</button>' +
+      '</div></div>'
+    );
+  }
+
+  function renderTopBar(now) {
+    return (
+      '<div class="top">' +
+        '<div class="top-left">' +
+          '<div class="clock">' + esc(formatClock(now)) + '</div>' +
+          '<div class="day">' + esc(formatDateLine(now)) + '</div>' +
+        '</div>' +
+        '<button type="button" class="sm-btn" style="background:#5b5b5b" id="btn-edit">Edit Meds</button>' +
+      '</div>'
+    );
+  }
+
+  function renderCallBar() {
+    return (
+      '<div class="foot">' +
+        '<div class="foot-row">' +
+          '<button class="btn call" id="btn-call-tom">' + avatarHtml('Tom', getContactByName('Tom').photoUrl) + ' Call Tom</button>' +
+          '<button class="btn call-katie" id="btn-call-katie">' + avatarHtml('Katie', getContactByName('Katie').photoUrl) + ' Call Katie</button>' +
+          '<button class="btn call-laura" id="btn-call-laura">' + avatarHtml('Laura', getContactByName('Laura').photoUrl) + ' Call Laura</button>' +
+          '<button class="btn call-matt" id="btn-call-matt">' + avatarHtml('Matt', getContactByName('Matt').photoUrl) + ' Call Matt</button>' +
+          '<button class="btn call-others" id="btn-call-others">📞 Call Others</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderMainTabs() {
+    var tabs = [
+      { k: 'meds', l: '💊 Meds' },
+      { k: 'todo', l: '📝 To Do List' },
+      { k: 'call', l: '📞 Call' },
+      { k: 'photos', l: '🖼️ Pictures' },
+      { k: 'settings', l: '⚙️ Settings' }
+    ];
+    return '<div class="main-tabs">' + tabs.map(function (t) {
+      return '<button type="button" class="main-tab' + (state.view === t.k ? ' on' : '') + '" data-main-tab="' + t.k + '">' + t.l + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function renderTodoView() {
+    var todosHtml = (state.todos && state.todos.length)
+      ? state.todos.map(function (td, idx) {
+          return (
+            '<div class="item">' +
+              '<div class="box' + (td.done ? ' on' : '') + '" data-toggle-todo="' + idx + '" style="cursor:pointer">' + (td.done ? '✓' : '') + '</div>' +
+              '<div class="n' + (td.done ? ' todo-done' : '') + '" data-toggle-todo="' + idx + '" style="cursor:pointer">' + esc(td.text) + '</div>' +
+              '<button type="button" class="sm-btn red" data-del-todo="' + idx + '">✕</button>' +
+            '</div>'
+          );
+        }).join('')
+      : '<div class="empty-msg">No to-do items yet.</div>';
+
+    var notesHtml = (state.notes && state.notes.length)
+      ? state.notes.map(function (nt, idx) {
+          return (
+            '<div class="item">' +
+              '<div class="n">' + esc(nt.text) + '<div class="d">' + esc(nt.date || '') + '</div></div>' +
+              '<button type="button" class="sm-btn red" data-del-note="' + idx + '">✕</button>' +
+            '</div>'
+          );
+        }).join('')
+      : '<div class="empty-msg">No notes yet.</div>';
+
+    return (
+      '<div class="edit-body">' +
+        '<div class="settings-grid">' +
+          '<div class="settings-col">' +
+            '<div class="sec-title" style="margin-top:0">📝 To Do List</div>' +
+            '<div style="display:flex;gap:10px;margin-bottom:14px">' +
+              '<input class="field" id="todo-input" placeholder="Add a to-do item…">' +
+              '<button type="button" class="sm-btn green" id="btn-add-todo">Add</button>' +
+            '</div>' +
+            todosHtml +
+          '</div>' +
+          '<div class="settings-col">' +
+            '<div class="sec-title" style="margin-top:0">📌 Notes</div>' +
+            '<div style="display:flex;gap:10px;margin-bottom:14px">' +
+              '<input class="field" id="note-input" placeholder="Leave a note…">' +
+              '<button type="button" class="sm-btn blue" id="btn-add-note">Add</button>' +
+            '</div>' +
+            notesHtml +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderCallPeopleView() {
+    var contacts = getMeetContactsFromConfig(state.config || {});
+    var colors = ['#1f8a3b', '#0f766e', '#7c3aed', '#b45309', '#2f5fb3', '#8a3fa8'];
+    var cards = contacts.filter(function (c) { return c.name; }).map(function (c, idx) {
+      var bg = colors[idx % colors.length];
+      return '<button type="button" class="btn call-card" style="background:' + bg + '" data-call-extra="' + esc(c.name) + '" data-call-url="' + esc(c.url || '') + '">' +
+        avatarHtml(c.name, c.photoUrl) + ' Call ' + esc(c.name) +
+      '</button>';
+    }).join('');
+    return '<div class="edit-body"><div class="call-grid">' + cards + '</div></div>';
+  }
+
   function render() {
+    document.body.classList.toggle('dark', !!(state.config && state.config.theme === 'dark'));
     var now = new Date();
     var geneView = computePersonView('gene', now);
     var peggyView = computePersonView('peggy', now);
@@ -494,7 +749,7 @@
 
       var photoHtml = (state.photos && state.photos.length)
         ? '<img class="ph-img" src="' + esc(state.photos[state.photoIdx % state.photos.length].url) + '" alt="Family photo">'
-        : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in Edit Meds → Settings</span></div>';
+        : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in Settings</span></div>';
 
       app.innerHTML =
         '<div class="screen-photos">' +
@@ -507,10 +762,16 @@
           '<div class="ph-actions">' +
             '<button class="btn call" id="btn-call-tom">📞 Call Tom</button>' +
             '<button class="btn call-katie" id="btn-call-katie">📞 Call Katie</button>' +
-            '<button class="btn photos" id="btn-to-meds">Meds</button>' +
+            '<button class="btn photos" id="btn-to-meds">💊 Meds</button>' +
           '</div>' +
           (bannerText ? '<div class="banner" id="open-meds-banner"><div>' + esc(bannerText) + '</div><div class="go">Open meds</div></div>' : '') +
         '</div>';
+    } else if (state.view === 'todo') {
+      app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + renderTodoView() + '</div>';
+    } else if (state.view === 'call') {
+      app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + renderCallPeopleView() + '</div>';
+    } else if (state.view === 'settings') {
+      app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + '<div class="edit-body">' + renderSettingsTab() + '</div></div>';
     } else {
       var showAlarmBar = !!dueKey && now.getTime() >= state.snoozedUntilMs && !isInQuietHours(now);
       var snoozeMin = (state.config && state.config.snoozeMin) || 10;
@@ -520,18 +781,14 @@
 
       app.innerHTML =
         '<div class="screen-meds">' +
-          '<div class="top"><div class="day">' + esc(formatDateLine(now)) + '</div><div class="clock">' + esc(formatClock(now)) + '</div></div>' +
+          renderTopBar(now) +
+          renderMainTabs() +
           alarmBarHtml +
           '<div class="cols">' +
             renderColumn('gene', 'Gene', geneView) +
             renderColumn('peggy', 'Peggy', peggyView) +
           '</div>' +
-          '<div class="foot">' +
-            '<button class="btn call" id="btn-call-tom">📞 Call Tom</button>' +
-            '<button class="btn call-katie" id="btn-call-katie">📞 Call Katie</button>' +
-            '<button class="btn photos" id="btn-to-photos">Photos</button>' +
-            '<button class="btn edit" id="btn-edit">Edit Meds</button>' +
-          '</div>' +
+          renderCallBar() +
         '</div>';
     }
 
@@ -560,11 +817,38 @@
     state.todayKey = res.todayKey || '';
     if (res.config) state.config = res.config;
     if (res.history) state.history = res.history;
+    if (res.todos) state.todos = res.todos;
+    if (res.notes) state.notes = res.notes;
   }
 
   function bindEvents(dueKey) {
-    var medEls = document.querySelectorAll('.med[data-med-id]');
+    var medEls = document.querySelectorAll('[data-med-id]');
     for (var i = 0; i < medEls.length; i++) medEls[i].addEventListener('click', onMedTap);
+
+    document.querySelectorAll('[data-toggle-expand]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var key = el.getAttribute('data-toggle-expand');
+        state.expandedSlots[key] = !state.expandedSlots[key];
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-clear-person]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var person = el.getAttribute('data-clear-person');
+        var who = person === 'peggy' ? 'Peggy' : 'Gene';
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.withSuccessHandler(function (res) {
+            if (res && res.todayLogs) {
+              state.todayLogs = res.todayLogs;
+              state.todayKey = res.todayKey;
+              render();
+              showToast('Cleared ' + who + "'s list");
+            }
+          }).apiClearPersonLogs(person, state.todayKey);
+        }
+      });
+    });
 
     var unlockEl = document.getElementById('btn-unlock-sound');
     if (unlockEl) unlockEl.addEventListener('click', function () { unlockAudio(); render(); showToast('Sound enabled'); });
@@ -609,6 +893,43 @@
     var callKatie = document.getElementById('btn-call-katie');
     if (callKatie) callKatie.addEventListener('click', function () { triggerCall('katie'); });
 
+    var callLaura = document.getElementById('btn-call-laura');
+    if (callLaura) callLaura.addEventListener('click', function () { triggerCall('laura'); });
+
+    var callMatt = document.getElementById('btn-call-matt');
+    if (callMatt) callMatt.addEventListener('click', function () { triggerCall('matt'); });
+
+    var callOthers = document.getElementById('btn-call-others');
+    if (callOthers) callOthers.addEventListener('click', function () {
+      state.view = 'call';
+      render();
+    });
+
+    document.querySelectorAll('[data-main-tab]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        unlockAudio();
+        var target = el.getAttribute('data-main-tab');
+        if (target === 'photos') {
+          state.manualView = 'photos';
+          state.dismissedDueKey = dueKey;
+        } else if (target === 'meds') {
+          state.manualView = 'meds';
+        }
+        state.view = target;
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-call-extra]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var name = el.getAttribute('data-call-extra');
+        var url = el.getAttribute('data-call-url');
+        state.showCallOthers = false;
+        render();
+        triggerCall(name, url);
+      });
+    });
+
     var editBtn = document.getElementById('btn-edit');
     if (editBtn) editBtn.addEventListener('click', function () {
       unlockAudio();
@@ -617,8 +938,42 @@
       render();
     });
 
-    var backBtn = document.getElementById('btn-back-meds');
-    if (backBtn) backBtn.addEventListener('click', function () {
+    var settingsBtn = document.getElementById('btn-settings');
+    if (settingsBtn) settingsBtn.addEventListener('click', function () {
+      unlockAudio();
+      state.view = 'edit';
+      state.editTab = 'settings';
+      render();
+    });
+
+    var saveExitBtn = document.getElementById('btn-save-exit');
+    if (saveExitBtn) saveExitBtn.addEventListener('click', function () {
+      if (state.editTab === 'form' && state.editMed) {
+        syncFormInputs();
+        if (state.editMed.name && state.editMed.name.trim()) {
+          google.script.run.withSuccessHandler(function (res) {
+            applyStateResponse(res);
+            state.editMed = null;
+            state.view = 'meds';
+            state.manualView = 'meds';
+            render();
+            showToast('Medication saved');
+          }).apiSaveMed(state.editMed);
+          return;
+        }
+      }
+      if (state.editTab === 'settings') {
+        saveSettingsFromDom(false);
+      }
+      state.editMed = null;
+      state.view = 'meds';
+      state.manualView = 'meds';
+      render();
+    });
+
+    var exitBtn = document.getElementById('btn-exit');
+    if (exitBtn) exitBtn.addEventListener('click', function () {
+      state.editMed = null;
       state.view = 'meds';
       state.manualView = 'meds';
       render();
@@ -749,33 +1104,149 @@
       });
     });
 
-    var saveSettingsBtn = document.getElementById('btn-save-settings');
-    if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', function () {
-      var payload = {
-        alertEmail: document.getElementById('s-alertEmail').value.trim(),
-        smsGatewayEmail: document.getElementById('s-smsGatewayEmail').value.trim(),
-        katieEmail: document.getElementById('s-katieEmail').value.trim(),
-        driveFolderId: document.getElementById('s-driveFolderId').value.trim(),
-        meetUrlTom: document.getElementById('s-meetUrlTom').value.trim(),
-        meetUrlKatie: document.getElementById('s-meetUrlKatie').value.trim(),
-        quietStart: document.getElementById('s-quietStart').value,
-        quietEnd: document.getElementById('s-quietEnd').value,
-        missedDelayMin: parseInt(document.getElementById('s-missedDelayMin').value, 10) || 120,
-        dailySummaryHour: parseInt(document.getElementById('s-dailySummaryHour').value, 10) || 21,
-        soundType: document.getElementById('s-soundType').value,
-        snoozeMin: parseInt(document.getElementById('s-snoozeMin').value, 10) || 10
-      };
-      google.script.run.withSuccessHandler(function (cfg) {
-        state.config = cfg;
-        loadPhotos();
-        showToast('Settings saved');
-      }).apiSaveConfig(payload);
+    var addTodoBtn = document.getElementById('btn-add-todo');
+    if (addTodoBtn) addTodoBtn.addEventListener('click', function () {
+      var inp = document.getElementById('todo-input');
+      if (!inp || !inp.value.trim()) return;
+      state.todos.push({ text: inp.value.trim(), done: false });
+      render();
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.apiSaveTodos(state.todos);
+      }
+    });
+
+    document.querySelectorAll('[data-toggle-todo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-toggle-todo'), 10);
+        if (state.todos[idx]) {
+          state.todos[idx].done = !state.todos[idx].done;
+          render();
+          if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run.apiSaveTodos(state.todos);
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-del-todo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-del-todo'), 10);
+        state.todos.splice(idx, 1);
+        render();
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.apiSaveTodos(state.todos);
+        }
+      });
+    });
+
+    var addNoteBtn = document.getElementById('btn-add-note');
+    if (addNoteBtn) addNoteBtn.addEventListener('click', function () {
+      var inp = document.getElementById('note-input');
+      if (!inp || !inp.value.trim()) return;
+      var d = new Date();
+      state.notes.unshift({ text: inp.value.trim(), date: formatDateLine(d) + ' ' + formatClock(d) });
+      render();
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.apiSaveNotes(state.notes);
+      }
+    });
+
+    document.querySelectorAll('[data-del-note]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-del-note'), 10);
+        state.notes.splice(idx, 1);
+        render();
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.apiSaveNotes(state.notes);
+        }
+      });
+    });
+
+    document.querySelectorAll('[id^="s-"], [data-meet-name], [data-meet-url], [data-meet-photo]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        saveSettingsFromDom(true);
+      });
+    });
+
+    var addMeetBtn = document.getElementById('btn-add-meet');
+    if (addMeetBtn) addMeetBtn.addEventListener('click', function () {
+      var contacts = readMeetContactsFromDom();
+      contacts.push({ name: '', url: '', photoUrl: '' });
+      state.config.meetContacts = contacts;
+      render();
+    });
+
+    document.querySelectorAll('[data-del-meet]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-del-meet'), 10);
+        var contacts = readMeetContactsFromDom();
+        contacts.splice(idx, 1);
+        state.config.meetContacts = contacts;
+        saveSettingsFromDom(true);
+        render();
+      });
     });
   }
 
-  function triggerCall(who) {
+  function readMeetContactsFromDom() {
+    var rows = document.querySelectorAll('[data-meet-idx]');
+    var list = [];
+    rows.forEach(function (row) {
+      var n = row.querySelector('[data-meet-name]');
+      var u = row.querySelector('[data-meet-url]');
+      var p = row.querySelector('[data-meet-photo]');
+      list.push({
+        name: n ? n.value.trim() : '',
+        url: u ? u.value.trim() : '',
+        photoUrl: p ? p.value.trim() : ''
+      });
+    });
+    return list;
+  }
+
+  function saveSettingsFromDom(keepEditView) {
+    if (!document.getElementById('s-alertEmail')) return;
+    var contacts = readMeetContactsFromDom();
+    var findUrl = function (label, fallbackIdx) {
+      var found = contacts.find(function (c) { return c.name.toLowerCase() === label; });
+      if (found) return found.url;
+      return contacts[fallbackIdx] ? contacts[fallbackIdx].url : '';
+    };
+    var payload = {
+      alertEmail: document.getElementById('s-alertEmail').value.trim(),
+      smsGatewayEmail: document.getElementById('s-smsGatewayEmail').value.trim(),
+      katieEmail: document.getElementById('s-katieEmail').value.trim(),
+      driveFolderId: document.getElementById('s-driveFolderId').value.trim(),
+      meetContacts: contacts,
+      meetUrlTom: findUrl('tom', 0),
+      meetUrlKatie: findUrl('katie', 1),
+      meetUrlMatt: findUrl('matt', 2),
+      meetUrlLaura: findUrl('laura', 3),
+      quietStart: document.getElementById('s-quietStart').value,
+      quietEnd: document.getElementById('s-quietEnd').value,
+      missedDelayMin: parseInt(document.getElementById('s-missedDelayMin').value, 10) || 120,
+      dailySummaryTime: document.getElementById('s-dailySummaryTime').value || '21:00',
+      theme: document.getElementById('s-theme').value,
+      medFormat: document.getElementById('s-medFormat').value,
+      soundType: document.getElementById('s-soundType').value,
+      snoozeMin: parseInt(document.getElementById('s-snoozeMin').value, 10) || 10
+    };
+    state.config = Object.assign({}, state.config, payload);
+    if (keepEditView) {
+      document.body.classList.toggle('dark', payload.theme === 'dark');
+    }
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (cfg) {
+        state.config = cfg;
+        loadPhotos();
+        showToast('Saved');
+      }).apiSaveConfig(payload);
+    }
+  }
+
+  function triggerCall(who, customUrl) {
     unlockAudio();
-    var label = who === 'katie' ? 'Katie' : 'Tom';
+    var label = who ? (who.charAt(0).toUpperCase() + who.slice(1)) : 'Tom';
     showToast('Calling ' + label + '…');
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (res) {
@@ -784,7 +1255,7 @@
         } else {
           showToast('Alert sent to ' + label + ' (add Meet URL in Settings)');
         }
-      }).apiNotifyCall(who);
+      }).apiNotifyCall(who, customUrl || '');
     }
   }
 

@@ -10,7 +10,9 @@ var STORE_KEYS = {
   LOGS: 'pt_logs_v1',
   HISTORY: 'pt_history_v1',
   CONFIG: 'pt_config_v1',
-  ALERTS: 'pt_alert_state_v1'
+  ALERTS: 'pt_alert_state_v1',
+  TODOS: 'pt_todos_v1',
+  NOTES: 'pt_notes_v1'
 };
 
 var RETENTION_DAYS = 90;
@@ -22,6 +24,9 @@ function getDefaultConfig_() {
     katieEmail: '',
     meetUrlTom: '',
     meetUrlKatie: '',
+    meetUrlMatt: '',
+    meetUrlLaura: '',
+    meetContacts: [],
     driveFolderId: '',
     quietStart: '21:00',
     quietEnd: '08:00',
@@ -29,7 +34,9 @@ function getDefaultConfig_() {
     soundType: 'chime',
     soundRepeat: 1,
     snoozeMin: 10,
-    dailySummaryHour: 21
+    dailySummaryTime: '21:00',
+    theme: 'light',
+    medFormat: 'qty_first'
   };
 }
 
@@ -117,7 +124,9 @@ function saveConfig(configInput, nowOpt) {
   cur.missedDelayMin = Math.max(15, parseInt(cur.missedDelayMin, 10) || 120);
   cur.soundRepeat = Math.max(0, Math.min(5, parseInt(cur.soundRepeat, 10) || 1));
   cur.snoozeMin = Math.max(1, Math.min(60, parseInt(cur.snoozeMin, 10) || 10));
-  cur.dailySummaryHour = Math.max(0, Math.min(23, parseInt(cur.dailySummaryHour, 10) || 21));
+  if (!cur.dailySummaryTime || String(cur.dailySummaryTime).indexOf(':') === -1) {
+    cur.dailySummaryTime = '21:00';
+  }
   writeJson_(props, STORE_KEYS.CONFIG, cur);
   return cur;
 }
@@ -215,7 +224,9 @@ function getAppState(nowOpt) {
     todayKey: todayKey,
     serverNowMs: now.getTime(),
     config: getConfig_(props),
-    history: history
+    history: history,
+    todos: readJson_(props, STORE_KEYS.TODOS, []),
+    notes: readJson_(props, STORE_KEYS.NOTES, [])
   };
 }
 
@@ -245,6 +256,34 @@ function toggleMedDose(medId, dateKeyOpt, nowOpt) {
         ts: now.getTime()
       };
     }
+
+    allLogs[dateKey] = dayLogs;
+    writeJson_(props, STORE_KEYS.LOGS, allLogs);
+
+    return {
+      todayKey: dateKey,
+      todayLogs: dayLogs,
+      serverNowMs: now.getTime()
+    };
+  });
+}
+
+function clearPersonLogs(person, dateKeyOpt, nowOpt) {
+  return withLock_(function () {
+    var props = getProps_();
+    var now = nowOpt || new Date();
+    var dateKey = dateKeyOpt || formatDateKey_(now);
+    var meds = readJson_(props, STORE_KEYS.MEDS, []);
+    var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
+    var dayLogs = allLogs[dateKey] || {};
+
+    var personMedIds = {};
+    meds.forEach(function (m) {
+      if (m.person === person) personMedIds[m.id] = true;
+    });
+    Object.keys(dayLogs).forEach(function (mid) {
+      if (personMedIds[mid]) delete dayLogs[mid];
+    });
 
     allLogs[dateKey] = dayLogs;
     writeJson_(props, STORE_KEYS.LOGS, allLogs);
@@ -396,6 +435,24 @@ function seedExampleData() {
   return { slots: slots.length, meds: meds.length };
 }
 
+function saveTodos(todos) {
+  return withLock_(function () {
+    var props = getProps_();
+    var clean = Array.isArray(todos) ? todos : [];
+    writeJson_(props, STORE_KEYS.TODOS, clean);
+    return clean;
+  });
+}
+
+function saveNotes(notes) {
+  return withLock_(function () {
+    var props = getProps_();
+    var clean = Array.isArray(notes) ? notes : [];
+    writeJson_(props, STORE_KEYS.NOTES, clean);
+    return clean;
+  });
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     STORE_KEYS: STORE_KEYS,
@@ -404,11 +461,14 @@ if (typeof module !== 'undefined' && module.exports) {
     isMedScheduledForDate: isMedScheduledForDate,
     getAppState: getAppState,
     toggleMedDose: toggleMedDose,
+    clearPersonLogs: clearPersonLogs,
     saveMed: saveMed,
     deleteMed: deleteMed,
     saveSlot: saveSlot,
     undoHistory: undoHistory,
     saveConfig: saveConfig,
+    saveTodos: saveTodos,
+    saveNotes: saveNotes,
     pruneOldData: pruneOldData,
     seedExampleData: seedExampleData,
     formatDateKey_: formatDateKey_,

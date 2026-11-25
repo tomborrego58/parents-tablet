@@ -24,6 +24,7 @@
    - **Settings → Developer options → Stay awake** → **On** *(keeps screen on while charging)*.
    - **Settings → Display → Screen timeout** → **30 minutes** (backup).
    - **Settings → Security and privacy → More security settings → Pin app** → **On**.
+   - **Google Meet incoming calls:** Add Tom's and Katie's emails to the tablet account's Google Contacts (and add the tablet's Google account to Tom's & Katie's phone Contacts) so Google Meet calls ring through on the tablet.
    - Open Chrome to the Web App URL → tap **Add to Home screen** (opens full-screen without address bar).
    - Tap the **🔊 Tap once to enable sound** button on the photo screen after any tablet restart.
    - Open Recents → tap the app icon → **Pin this app** so Gene & Peggy can't close it by accident.
