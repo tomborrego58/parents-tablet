@@ -14,7 +14,12 @@
     photos: [],
     videos: [],
     activeVideo: null,
-    todoWho: 'Gene',
+    todoWho: 'Both',
+    todoFrom: 'Gene',
+    todoDate: '',
+    todoTime: '',
+    todoPopupOpen: false,
+    todoDraft: '',
     isListening: false,
     photoIdx: 0,
     view: 'photos',        // 'photos' | 'meds' | 'edit'
@@ -684,44 +689,98 @@
     }).join('') + '</div>';
   }
 
-  function parseSmartTodo(raw, who, nowOpt) {
+  function todayISO(nowOpt) {
+    var d = nowOpt || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function currentTimeAP(nowOpt) {
+    var d = nowOpt || new Date();
+    var h = d.getHours();
+    var m = String(d.getMinutes()).padStart(2, '0');
+    var ap = h >= 12 ? 'p' : 'a';
+    return (h % 12 || 12) + ':' + m + ' ' + ap;
+  }
+
+  function formatMMDD(iso) {
+    if (!iso || iso.indexOf('-') === -1) return '—';
+    var p = iso.split('-');
+    return p[1] + '/' + p[2];
+  }
+
+  function normalizeTimeInput(raw) {
+    var s = String(raw || '').trim().toLowerCase();
+    if (!s) return '';
+    var apMatch = s.match(/^(\d{1,2}):(\d{2})\s*([ap])m?$/);
+    if (apMatch) {
+      var h0 = parseInt(apMatch[1], 10);
+      if (h0 >= 1 && h0 <= 12) return h0 + ':' + apMatch[2] + ' ' + apMatch[3];
+    }
+    var digits = s.replace(/\D/g, '');
+    if (digits.length === 3 || digits.length === 4) {
+      var num = parseInt(digits, 10);
+      var h = Math.floor(num / 100);
+      var m = num % 100;
+      if (m < 60 && h >= 1 && h <= 12) {
+        var ap = (h >= 7 && h <= 11) ? 'a' : 'p';
+        return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
+      }
+    }
+    return s;
+  }
+
+  function timeAPToMinutes(tStr) {
+    if (!tStr) return -1;
+    var m = String(tStr).trim().toLowerCase().match(/^(\d{1,2}):(\d{2})\s*([ap])/);
+    if (!m) return 9999;
+    var h = parseInt(m[1], 10) % 12;
+    if (m[3] === 'p') h += 12;
+    return h * 60 + parseInt(m[2], 10);
+  }
+
+  function sortTodosList(list) {
+    return list.slice().sort(function (a, b) {
+      var ad = a.dateISO || '';
+      var bd = b.dateISO || '';
+      if (!ad && bd) return -1;
+      if (ad && !bd) return 1;
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      return timeAPToMinutes(a.timeStr) - timeAPToMinutes(b.timeStr);
+    });
+  }
+
+  function parseSmartTodo(raw, fallbackDateISO, fallbackTimeStr, nowOpt) {
     var now = nowOpt || new Date();
     var text = String(raw || '').trim();
-    if (!text) return { formatted: '', sortTs: Number.MAX_SAFE_INTEGER };
+    if (!text) return { desc: '', dateISO: fallbackDateISO, timeStr: fallbackTimeStr };
 
     var lower = text.toLowerCase();
-    var targetDate = null;
+    var dateISO = fallbackDateISO;
     var dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
     if (/\btoday\b/.test(lower)) {
-      targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      dateISO = todayISO(now);
     } else if (/\btomorrow\b/.test(lower)) {
-      targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      dateISO = todayISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
     } else {
       for (var d = 0; d < 7; d++) {
         if (new RegExp('\\b' + dayNames[d] + '\\b', 'i').test(lower)) {
           var diff = (d - now.getDay() + 7) % 7;
           if (diff === 0) diff = 7;
-          targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+          dateISO = todayISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff));
           break;
         }
       }
     }
 
-    var timeLabel = '';
-    var timeHour = 9;
-    var timeMin = 0;
+    var timeStr = fallbackTimeStr;
     var tm = lower.match(/\b(by|before|nlt|at)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
     if (tm && (tm[1] || tm[4] || tm[3])) {
       var h = parseInt(tm[2], 10);
       var m = parseInt(tm[3] || '0', 10);
-      if (tm[4] === 'pm' && h < 12) h += 12;
-      if (tm[4] === 'am' && h === 12) h = 0;
-      timeHour = h;
-      timeMin = m;
-      var hhmm = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-      var isNlt = tm[1] === 'by' || tm[1] === 'before' || tm[1] === 'nlt';
-      timeLabel = (isNlt ? 'NLT ' : '') + hhmm;
+      var ap = tm[4] ? tm[4].charAt(0) : ((h >= 7 && h <= 11) ? 'a' : 'p');
+      var h12 = h % 12 || 12;
+      timeStr = h12 + ':' + String(m).padStart(2, '0') + ' ' + ap;
     }
 
     var clean = text
@@ -733,70 +792,83 @@
     if (!clean) clean = text;
     clean = clean.charAt(0).toUpperCase() + clean.slice(1);
 
-    var prefix = [];
-    var sortTs = Number.MAX_SAFE_INTEGER;
-    if (targetDate) {
-      prefix.push(targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
-      sortTs = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), timeHour, timeMin).getTime();
-    }
-    if (timeLabel) prefix.push(timeLabel);
-
-    var whoTag = who ? ' (' + who + ')' : '';
-    var formatted = (prefix.length ? prefix.join(' · ') + ' — ' : '') + clean + whoTag;
-    return { formatted: formatted, sortTs: sortTs };
+    return { desc: clean, dateISO: dateISO, timeStr: timeStr };
   }
 
   function renderTodoView() {
-    var whoList = ['Gene', 'Peggy', 'Tom', 'Katie'];
+    if (state.todoDate === '' && !state._todoDateInited) {
+      state.todoDate = todayISO();
+      state.todoTime = currentTimeAP();
+      state._todoDateInited = true;
+    }
+    var fromList = ['Gene', 'Peggy', 'Tom', 'Katie'];
+    var whoList = ['Gene', 'Peggy', 'Both'];
+    var fromPills = fromList.map(function (f) {
+      return '<button type="button" class="pill' + (state.todoFrom === f ? ' on' : '') + '" data-todo-from="' + f + '">' + f + '</button>';
+    }).join('');
     var whoPills = whoList.map(function (w) {
       return '<button type="button" class="pill' + (state.todoWho === w ? ' on' : '') + '" data-todo-who="' + w + '">' + w + '</button>';
     }).join('');
 
-    var todosHtml = (state.todos && state.todos.length)
-      ? state.todos.map(function (td, idx) {
+    var sorted = sortTodosList(state.todos || []);
+    var rowsHtml = sorted.length
+      ? sorted.map(function (td) {
+          var realIdx = (state.todos || []).indexOf(td);
+          var desc = td.desc || td.text || '';
           return (
-            '<div class="item">' +
-              '<div class="box' + (td.done ? ' on' : '') + '" data-toggle-todo="' + idx + '" style="cursor:pointer">' + (td.done ? '✓' : '') + '</div>' +
-              '<div class="n' + (td.done ? ' todo-done' : '') + '" data-toggle-todo="' + idx + '" style="cursor:pointer">' + esc(td.text) + '</div>' +
-              '<button type="button" class="sm-btn red" data-del-todo="' + idx + '">✕</button>' +
-            '</div>'
+            '<tr class="' + (td.done ? 'todo-row-done' : '') + '">' +
+              '<td style="width:46px"><div class="box' + (td.done ? ' on' : '') + '" data-toggle-todo="' + realIdx + '" style="cursor:pointer">' + (td.done ? '✓' : '') + '</div></td>' +
+              '<td style="width:76px;white-space:nowrap">' + esc(formatMMDD(td.dateISO)) + '</td>' +
+              '<td style="width:94px;white-space:nowrap">' + esc(td.timeStr || '—') + '</td>' +
+              '<td style="width:86px"><span class="who-tag">' + esc(td.who || 'Both') + '</span></td>' +
+              '<td class="todo-desc" data-toggle-todo="' + realIdx + '" style="cursor:pointer">' + esc(desc) + '</td>' +
+              '<td style="width:86px;white-space:nowrap">' + esc(td.from || '') + '</td>' +
+              '<td style="width:60px;vertical-align:bottom">' +
+                '<button type="button" class="del-cell" data-del-todo="' + realIdx + '">' +
+                  '<span class="del-x-box">✕</span><span class="del-lbl">Delete</span>' +
+                '</button>' +
+              '</td>' +
+            '</tr>'
           );
         }).join('')
-      : '<div class="empty-msg">No to-do items yet.</div>';
+      : '<tr><td colspan="7" style="text-align:center;padding:24px;color:#666">No notes or tasks yet.</td></tr>';
 
-    var notesHtml = (state.notes && state.notes.length)
-      ? state.notes.map(function (nt, idx) {
-          return (
-            '<div class="item">' +
-              '<div class="n">' + esc(nt.text) + '<div class="d">' + esc(nt.date || '') + '</div></div>' +
-              '<button type="button" class="sm-btn red" data-del-note="' + idx + '">✕</button>' +
-            '</div>'
-          );
-        }).join('')
-      : '<div class="empty-msg">No notes yet.</div>';
+    var popupHtml = '';
+    if (state.todoPopupOpen) {
+      popupHtml =
+        '<div class="dlg"><div class="c" style="text-align:left;max-width:1120px;width:94%;padding:24px 28px">' +
+          '<div class="lbl" style="margin-top:0">From</div><div>' + fromPills + '</div>' +
+          '<div class="lbl">For</div><div>' + whoPills + '</div>' +
+          '<div style="display:flex;gap:12px;margin-top:6px">' +
+            '<div style="width:180px"><div class="lbl" style="margin-top:4px">Date</div><input type="date" class="field" id="todo-date" value="' + esc(state.todoDate) + '"></div>' +
+            '<div style="width:140px"><div class="lbl" style="margin-top:4px">Time</div><input class="field" id="todo-time" value="' + esc(state.todoTime) + '" placeholder="e.g. 730"></div>' +
+          '</div>' +
+          '<div class="lbl">Leave a note</div>' +
+          '<textarea class="field" id="todo-popup-text" rows="3" placeholder="Type or speak your note…">' + esc(state.todoDraft) + '</textarea>' +
+          '<div style="display:flex;gap:12px;margin-top:16px">' +
+            '<button type="button" class="btn red' + (state.isListening ? ' listening' : '') + '" style="height:68px" id="btn-popup-voice">' + (state.isListening ? 'Listening…' : '🎤 Voice') + '</button>' +
+            '<button type="button" class="btn call" style="height:68px" id="btn-popup-add">Add</button>' +
+            '<button type="button" class="btn edit" style="height:68px;flex:0.6" id="btn-popup-cancel">Cancel</button>' +
+          '</div>' +
+        '</div></div>';
+    }
 
     return (
       '<div class="edit-body">' +
-        '<div class="settings-grid">' +
-          '<div class="settings-col">' +
-            '<div class="sec-title" style="margin-top:0">📝 To Do List</div>' +
-            '<div style="margin-bottom:8px">' + whoPills + '</div>' +
-            '<div style="display:flex;gap:10px;margin-bottom:14px">' +
-              '<input class="field" id="todo-input" placeholder="Type or tap 🎤 Voice…">' +
-              '<button type="button" class="mic-btn' + (state.isListening ? ' listening' : '') + '" id="btn-voice-todo">' + (state.isListening ? 'Listening…' : '🎤 Voice') + '</button>' +
-              '<button type="button" class="sm-btn green" id="btn-add-todo">Add</button>' +
-            '</div>' +
-            todosHtml +
-          '</div>' +
-          '<div class="settings-col">' +
-            '<div class="sec-title" style="margin-top:0">📌 Notes</div>' +
-            '<div style="display:flex;gap:10px;margin-bottom:14px">' +
-              '<input class="field" id="note-input" placeholder="Leave a note…">' +
-              '<button type="button" class="sm-btn blue" id="btn-add-note">Add</button>' +
-            '</div>' +
-            notesHtml +
+        '<div class="item" style="margin-bottom:14px">' +
+          '<div style="display:flex;gap:10px;width:100%">' +
+            '<input class="field" id="todo-input" value="' + esc(state.todoDraft) + '" placeholder="Leave a note…" readonly style="cursor:pointer;flex:1">' +
+            '<button type="button" class="sm-btn green" id="btn-add-todo">Add</button>' +
+            '<button type="button" class="mic-btn" id="btn-voice-todo">🎤 Voice</button>' +
           '</div>' +
         '</div>' +
+        '<div class="todo-table-wrap">' +
+          '<table class="todo-table">' +
+            '<thead><tr><th></th><th>Date</th><th>Time</th><th>Who</th><th>Description</th><th>From</th><th></th></tr></thead>' +
+            '<tbody>' + rowsHtml + '</tbody>' +
+          '</table>' +
+        '</div>' +
+        popupHtml +
       '</div>'
     );
   }
@@ -1226,44 +1298,83 @@
       });
     });
 
+    document.querySelectorAll('[data-todo-from]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var ta = document.getElementById('todo-popup-text');
+        if (ta) state.todoDraft = ta.value;
+        state.todoFrom = el.getAttribute('data-todo-from');
+        render();
+      });
+    });
+
     document.querySelectorAll('[data-todo-who]').forEach(function (el) {
       el.addEventListener('click', function () {
+        var ta = document.getElementById('todo-popup-text');
+        if (ta) state.todoDraft = ta.value;
         state.todoWho = el.getAttribute('data-todo-who');
         render();
       });
     });
 
+    var todoDateEl = document.getElementById('todo-date');
+    if (todoDateEl) todoDateEl.addEventListener('change', function () {
+      state.todoDate = todoDateEl.value || '';
+    });
+
+    var todoTimeEl = document.getElementById('todo-time');
+    if (todoTimeEl) todoTimeEl.addEventListener('change', function () {
+      state.todoTime = normalizeTimeInput(todoTimeEl.value);
+      todoTimeEl.value = state.todoTime;
+    });
+
+    var todoInpEl = document.getElementById('todo-input');
+    if (todoInpEl) todoInpEl.addEventListener('click', function () {
+      state.todoPopupOpen = true;
+      render();
+      setTimeout(function () {
+        var ta = document.getElementById('todo-popup-text');
+        if (ta) ta.focus();
+      }, 40);
+    });
+
     var voiceBtn = document.getElementById('btn-voice-todo');
     if (voiceBtn) voiceBtn.addEventListener('click', function () {
-      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) { showToast('Voice input not supported in this browser'); return; }
-      var rec = new SR();
-      rec.lang = 'en-US';
-      rec.interimResults = false;
-      state.isListening = true;
+      state.todoPopupOpen = true;
       render();
-      rec.onresult = function (ev) {
-        state.isListening = false;
-        var transcript = ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : '';
-        if (transcript) {
-          addSmartTodo(transcript);
-        } else {
-          render();
-        }
-      };
-      rec.onerror = function () {
-        state.isListening = false;
-        render();
-        showToast('Could not hear voice — try again');
-      };
-      rec.start();
+      startVoiceIntoPopup();
+    });
+
+    var popupVoiceBtn = document.getElementById('btn-popup-voice');
+    if (popupVoiceBtn) popupVoiceBtn.addEventListener('click', startVoiceIntoPopup);
+
+    var popupCancelBtn = document.getElementById('btn-popup-cancel');
+    if (popupCancelBtn) popupCancelBtn.addEventListener('click', function () {
+      state.todoPopupOpen = false;
+      state.isListening = false;
+      render();
+    });
+
+    var popupAddBtn = document.getElementById('btn-popup-add');
+    if (popupAddBtn) popupAddBtn.addEventListener('click', function () {
+      var ta = document.getElementById('todo-popup-text');
+      var txt = ta ? ta.value.trim() : state.todoDraft.trim();
+      state.todoPopupOpen = false;
+      state.isListening = false;
+      state.todoDraft = '';
+      if (txt) addSmartTodo(txt);
+      else render();
     });
 
     var addTodoBtn = document.getElementById('btn-add-todo');
     if (addTodoBtn) addTodoBtn.addEventListener('click', function () {
-      var inp = document.getElementById('todo-input');
-      if (!inp || !inp.value.trim()) return;
-      addSmartTodo(inp.value.trim());
+      if (state.todoDraft && state.todoDraft.trim()) {
+        var txt = state.todoDraft.trim();
+        state.todoDraft = '';
+        addSmartTodo(txt);
+      } else {
+        state.todoPopupOpen = true;
+        render();
+      }
     });
 
     var watchBtn = document.getElementById('btn-watch-video');
@@ -1384,13 +1495,44 @@
     return list;
   }
 
+  function startVoiceIntoPopup() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { showToast('Voice input not supported in this browser'); return; }
+    var rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    state.isListening = true;
+    render();
+    rec.onresult = function (ev) {
+      state.isListening = false;
+      var transcript = ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : '';
+      if (transcript) {
+        state.todoDraft = (state.todoDraft ? state.todoDraft + ' ' : '') + transcript;
+      }
+      render();
+      var ta = document.getElementById('todo-popup-text');
+      if (ta) ta.focus();
+    };
+    rec.onerror = function () {
+      state.isListening = false;
+      render();
+      showToast('Could not hear voice — try again');
+    };
+    rec.start();
+  }
+
   function addSmartTodo(rawText) {
-    var parsed = parseSmartTodo(rawText, state.todoWho);
-    if (!parsed.formatted) return;
-    state.todos.push({ text: parsed.formatted, done: false, sortTs: parsed.sortTs });
-    state.todos.sort(function (a, b) {
-      return (a.sortTs || Number.MAX_SAFE_INTEGER) - (b.sortTs || Number.MAX_SAFE_INTEGER);
+    var parsed = parseSmartTodo(rawText, state.todoDate, state.todoTime);
+    if (!parsed.desc) return;
+    state.todos.push({
+      desc: parsed.desc,
+      dateISO: parsed.dateISO,
+      timeStr: parsed.timeStr,
+      who: state.todoWho || 'Both',
+      from: state.todoFrom || 'Gene',
+      done: false
     });
+    state.todos = sortTodosList(state.todos);
     render();
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.apiSaveTodos(state.todos);

@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>To Do &amp; Notes Layout Mockup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #241773; color: #fff; padding: 20px; max-width: 1280px; margin: 0 auto; }
+    h1 { font-size: 26px; margin-bottom: 14px; }
+    .panel { background: #fff; color: #1b1b1b; border-radius: 18px; padding: 18px; margin-bottom: 16px; }
+    .top-input { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+    .meta-col { flex: 1.1; min-width: 340px; }
+    .note-col { flex: 1.3; min-width: 360px; }
+    .lbl { font-size: 16px; font-weight: 800; color: #444; margin: 8px 0 4px; }
+    .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill { border: 3px solid #2f5fb3; border-radius: 12px; padding: 8px 16px; font-size: 18px; font-weight: 800; background: #fff; color: #2f5fb3; }
+    .pill.on { background: #2f5fb3; color: #fff; }
+    .dt-row { display: flex; gap: 10px; margin-top: 8px; }
+    .field { border: 3px solid #444; border-radius: 12px; padding: 10px 12px; font-size: 20px; font-weight: 700; width: 100%; }
+    .note-row { display: flex; gap: 10px; align-items: stretch; }
+    .btn { border: none; border-radius: 14px; padding: 12px 22px; font-size: 22px; font-weight: 800; color: #fff; cursor: pointer; white-space: nowrap; }
+    .green { background: #1f8a3b; }
+    .red { background: #c62828; }
+    table { width: 100%; border-collapse: collapse; font-size: 20px; }
+    th { text-align: left; padding: 10px 12px; border-bottom: 3px solid #ddd; color: #555; font-size: 17px; }
+    td { padding: 12px; border-bottom: 2px solid #eee; vertical-align: middle; font-weight: 700; }
+    .box { width: 34px; height: 34px; border: 3px solid #444; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+    .tag { display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 16px; font-weight: 800; background: #ebe6db; }
+  </style>
+</head>
+<body>
+  <h1>📝 To Do &amp; Notes — Proposed Full-Width Mockup</h1>
+
+  <div class="panel">
+    <div class="top-input">
+      <div class="meta-col">
+        <div class="lbl">From</div>
+        <div class="pills">
+          <span class="pill on">Gene</span><span class="pill">Peggy</span><span class="pill">Tom</span><span class="pill">Katie</span>
+        </div>
+        <div class="lbl">For (Who)</div>
+        <div class="pills">
+          <span class="pill">Gene</span><span class="pill">Peggy</span><span class="pill on">Both</span>
+        </div>
+        <div class="dt-row">
+          <div style="flex:1"><div class="lbl">Date (MM/DD or blank)</div><input class="field" value="11/25"></div>
+          <div style="flex:1"><div class="lbl">Time (HH:MM a/p or blank)</div><input class="field" value="12:04 p"></div>
+        </div>
+      </div>
+
+      <div class="note-col">
+        <div class="lbl">Leave a note</div>
+        <div class="note-row">
+          <input class="field" placeholder="Leave a note…">
+          <button class="btn green">Add</button>
+          <button class="btn red">🎤 Voice</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:52px"></th>
+          <th style="width:95px">Date</th>
+          <th style="width:110px">Time</th>
+          <th style="width:95px">Who</th>
+          <th style="width:95px">From</th>
+          <th>Description</th>
+          <th style="width:60px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="box"></span></td><td>—</td><td>—</td><td><span class="tag">Both</span></td><td>Tom</td><td>Check front porch for package (no date/time → top)</td><td>✕</td></tr>
+        <tr><td><span class="box"></span></td><td>11/25</td><td>—</td><td><span class="tag">Peggy</span></td><td>Katie</td><td>Call dentist office (no time → top of 11/25)</td><td>✕</td></tr>
+        <tr><td><span class="box"></span></td><td>11/25</td><td>02:30 p</td><td><span class="tag">Gene</span></td><td>Gene</td><td>Physical therapy pickup</td><td>✕</td></tr>
+        <tr><td><span class="box"></span></td><td>12/01</td><td>10:00 a</td><td><span class="tag">Both</span></td><td>Gene</td><td>Mail holiday gifts</td><td>✕</td></tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>
