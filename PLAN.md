@@ -101,9 +101,10 @@ Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser,
 
 ## Open decisions / extras
 - **Reconsider later:** Web App access is currently set to **Anyone** (so it opens cleanly on tablet + phone); revisit locking down to **Only myself** later.
-- **Apps Script top banner:** Google forces the *"This application was created by a Google Apps Script user"* bar on free `/exec` pages. If it confuses Gene & Peggy, we can later host the HTML frontend on free GitHub Pages (with Apps Script as backend) so the banner disappears.
-- **Video messages inbox (future):** Easy-to-view inbox on the tablet for Tom, Katie, Matt, and Laura to leave short video messages.
-- **Meet buttons for Matt & Laura:** Meet URL fields are in Settings; add **Call Matt** / **Call Laura** buttons later if wanted.
+- **Video messages inbox (1A):** Pop-up banner on Pictures & Meds + full-screen video player (configured via Video Messages Drive Folder in Settings).
+- **Call Doctor (3A):** Doctor Name & Phone in Settings + red Doctor button on Call page (`tel:`).
+- **Voice Smart To Do (4A):** Big 🎤 Voice button + Who pills (`Gene`, `Peggy`, `Tom`, `Katie`) + local date/time parser.
+- **Apps Script top banner (2A):** Kept `/exec` for now (review `docs/mockups/overnight-decisions.html` `2B` if you want GitHub Pages later).
 - **Morning review items (decided overnight for Tom to confirm):**
   - Free text alerts: added optional carrier SMS-gateway email field in Settings (e.g. `@vtext.com` / `@txt.att.net`).
   - Meet buttons: two separate buttons (**Call Tom** + **Call Katie**) with fixed Meet links + email alerts.

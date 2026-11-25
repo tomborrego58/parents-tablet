@@ -12,7 +12,8 @@ var STORE_KEYS = {
   CONFIG: 'pt_config_v1',
   ALERTS: 'pt_alert_state_v1',
   TODOS: 'pt_todos_v1',
-  NOTES: 'pt_notes_v1'
+  NOTES: 'pt_notes_v1',
+  WATCHED_VIDEOS: 'pt_watched_videos_v1'
 };
 
 var RETENTION_DAYS = 90;
@@ -28,6 +29,9 @@ function getDefaultConfig_() {
     meetUrlLaura: '',
     meetContacts: [],
     driveFolderId: '',
+    videoFolderId: '',
+    doctorName: 'Doctor',
+    doctorPhone: '',
     quietStart: '21:00',
     quietEnd: '08:00',
     missedDelayMin: 120,
@@ -453,6 +457,19 @@ function saveNotes(notes) {
   });
 }
 
+function markVideoWatched(videoId) {
+  return withLock_(function () {
+    var props = getProps_();
+    var watched = readJson_(props, STORE_KEYS.WATCHED_VIDEOS, []);
+    if (videoId && watched.indexOf(videoId) === -1) {
+      watched.push(videoId);
+      if (watched.length > 100) watched = watched.slice(-100);
+      writeJson_(props, STORE_KEYS.WATCHED_VIDEOS, watched);
+    }
+    return watched;
+  });
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     STORE_KEYS: STORE_KEYS,
@@ -469,6 +486,7 @@ if (typeof module !== 'undefined' && module.exports) {
     saveConfig: saveConfig,
     saveTodos: saveTodos,
     saveNotes: saveNotes,
+    markVideoWatched: markVideoWatched,
     pruneOldData: pruneOldData,
     seedExampleData: seedExampleData,
     formatDateKey_: formatDateKey_,

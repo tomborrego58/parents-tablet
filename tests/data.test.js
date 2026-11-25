@@ -146,3 +146,15 @@ test('quiet hours, Drive folder ID extraction, missed-dose (2h) & 9pm summary wo
   assert.equal(sentEmails.length, missedCount + 1);
   assert.match(sentEmails[sentEmails.length - 1].subject, /Daily Summary/);
 });
+
+test('saveTodos, saveNotes, and markVideoWatched persist in PropertiesService', () => {
+  installMockServices();
+  data.saveTodos([{ text: 'Tue, Dec 1 · NLT 10:00 — Mail gifts (Gene)', done: false }]);
+  data.saveNotes([{ text: 'Call pharmacy', date: 'Nov 24' }]);
+  const watched = data.markVideoWatched('vid_123');
+  assert.deepEqual(watched, ['vid_123']);
+
+  const st = data.getAppState(new Date(2026, 10, 24, 12, 0, 0));
+  assert.equal(st.todos.length, 1);
+  assert.equal(st.notes.length, 1);
+});

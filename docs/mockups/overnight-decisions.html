@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Parents' Tablet — Overnight Design Decisions (2026-11-24)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f4f1ea; color: #1b1b1b; padding: 28px; max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 32px; margin-bottom: 8px; }
+    .sub { font-size: 18px; color: #444; margin-bottom: 28px; }
+    .decision { background: #fff; border-radius: 18px; padding: 22px; margin-bottom: 24px; border: 2px solid #d7d0c2; }
+    .d-title { font-size: 24px; font-weight: 800; margin-bottom: 14px; }
+    .opts { display: flex; gap: 18px; flex-wrap: wrap; }
+    .opt { flex: 1; min-width: 300px; border: 3px solid #ccc; border-radius: 14px; padding: 16px; background: #faf8f4; }
+    .opt.chosen { border-color: #1f8a3b; background: #f2fbf4; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 14px; font-weight: 800; margin-bottom: 8px; background: #5b5b5b; color: #fff; }
+    .opt.chosen .badge { background: #1f8a3b; }
+    .opt h3 { font-size: 20px; margin-bottom: 8px; }
+    .opt p { font-size: 16px; line-height: 1.45; color: #333; margin-bottom: 10px; }
+    .mock { background: #fff; border: 2px solid #bbb; border-radius: 10px; padding: 12px; font-size: 15px; }
+    .pill { display: inline-block; padding: 6px 12px; border-radius: 8px; background: #241773; color: #fff; font-weight: 700; margin: 2px; }
+    .banner { background: #ffd34d; padding: 10px 14px; border-radius: 10px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+  <h1>Overnight Design Decisions — Morning Review</h1>
+  <p class="sub">Reply with any code (e.g., <b>1B</b> or <b>3B</b>) to switch an option.</p>
+
+  <div class="decision">
+    <div class="d-title">Decision 1: Video Messages Inbox</div>
+    <div class="opts">
+      <div class="opt chosen">
+        <span class="badge">1A · CHOSEN</span>
+        <h3>Pop-up Banner on Pictures &amp; Meds</h3>
+        <p>Shows a yellow banner whenever unwatched videos are in the Drive Video folder. Tapping Watch opens a full-screen player; Mark Watched hides the banner.</p>
+        <div class="mock"><div class="banner"><span>🎥 New family video message!</span><span class="pill">Watch</span></div></div>
+      </div>
+      <div class="opt">
+        <span class="badge">1B · ALTERNATIVE</span>
+        <h3>6th Top Navigation Tab</h3>
+        <p>Adds a 6th "🎥 Videos" tab to the top bar, making 6 tabs across instead of 5.</p>
+        <div class="mock"><span class="pill">💊 Meds</span><span class="pill">📝 To Do</span><span class="pill">📞 Call</span><span class="pill">🖼️ Pics</span><span class="pill">🎥 Videos</span><span class="pill">⚙️</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <div class="d-title">Decision 2: Apps Script Top Banner vs. GitHub Pages</div>
+    <div class="opts">
+      <div class="opt chosen">
+        <span class="badge">2A · CHOSEN</span>
+        <h3>Keep Apps Script Web App (/exec)</h3>
+        <p>Zero dual-hosting complexity; instant clasp deploy; no CORS/JSONP auth issues. Leaves the thin ~28px Google banner at the very top.</p>
+      </div>
+      <div class="opt">
+        <span class="badge">2B · ALTERNATIVE</span>
+        <h3>Static GitHub Pages Frontend</h3>
+        <p>Removes the Google banner completely, but requires converting every RPC call to fetch/CORS and maintaining two separate deploys.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <div class="d-title">Decision 3: Settings Layout + Doctor Phone</div>
+    <div class="opts">
+      <div class="opt chosen">
+        <span class="badge">3A · CHOSEN</span>
+        <h3>New Section Below Current Settings</h3>
+        <p>Adds a 3rd section ("Doctor &amp; Video Messages") below the existing 2-column Settings page, plus a Doctor button on the Call tab.</p>
+      </div>
+      <div class="opt">
+        <span class="badge">3B · ALTERNATIVE</span>
+        <h3>Left-Hand Tabbed Settings Sidebar</h3>
+        <p>Splits Settings into vertical left tabs (General, Calls, Doctor, Media) for smaller screens.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <div class="d-title">Decision 4: Voice-Optional Smart To Do List</div>
+    <div class="opts">
+      <div class="opt chosen">
+        <span class="badge">4A · CHOSEN</span>
+        <h3>Browser Speech-to-Text + Local Date/Time Parser</h3>
+        <p>Free, instant, zero API keys. Big 🎤 Mic button + "Who" pills (Gene, Peggy, Tom, Katie). Parses "by 10 on Tuesday" into <b>Tue, Dec 1 · NLT 10:00 — Mail gifts (Gene)</b>.</p>
+      </div>
+      <div class="opt">
+        <span class="badge">4B · ALTERNATIVE</span>
+        <h3>External LLM Parser</h3>
+        <p>Handles arbitrary phrasing via Gemini/OpenAI API, but requires a paid/managed API key and network round-trip.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <div class="d-title">Decision 5: 5-Across Tall Call Page &amp; 1-Row Landscape Meds</div>
+    <div class="opts">
+      <div class="opt chosen">
+        <span class="badge">5A · CHOSEN</span>
+        <h3>5-Column Call Grid (50% Taller, Name + Icon Only) + 1-Row Meds</h3>
+        <p>Call page shows 5 buttons per row, 165px tall, no "Call" prefix, includes Doctor + extra Meet contacts. Landscape meds fit on 1 compact line per med.</p>
+      </div>
+      <div class="opt">
+        <span class="badge">5B · ALTERNATIVE</span>
+        <h3>2-Line Med Rows + 3-Column Call Grid</h3>
+        <p>Keeps dose on a separate line below med name (requires scrolling when 8 meds are due in one slot).</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

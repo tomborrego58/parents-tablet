@@ -195,6 +195,35 @@ function getDrivePhotos() {
   }
 }
 
+function getDriveVideos() {
+  var props = getProps_();
+  var cfg = getConfig_(props);
+  var folderId = extractDriveFolderId_(cfg.videoFolderId);
+  if (!folderId || typeof DriveApp === 'undefined') return [];
+
+  var watched = readJson_(props, STORE_KEYS.WATCHED_VIDEOS, []);
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    var files = folder.getFiles();
+    var out = [];
+    while (files.hasNext() && out.length < 20) {
+      var f = files.next();
+      var mime = f.getMimeType() || '';
+      var id = f.getId();
+      if (mime.indexOf('video/') === 0 && watched.indexOf(id) === -1) {
+        out.push({
+          id: id,
+          name: f.getName(),
+          previewUrl: 'https://drive.google.com/file/d/' + id + '/preview'
+        });
+      }
+    }
+    return out;
+  } catch (e) {
+    return [];
+  }
+}
+
 /**
  * Checks unread emails with image attachments and saves them into the Drive photo folder.
  */

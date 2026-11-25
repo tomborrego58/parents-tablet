@@ -22,3 +22,4 @@
 - 2026-11-23: Photos: Google Drive folder slideshow + automatic email-to-Drive photo import.
 - 2026-11-24: Web App deployed with access "Anyone" for now; revisit locking down to "Only myself" later.
 - 2026-11-24: Added 5-tab top navigation (Meds, To Do List & Notes, Call, Pictures, Settings), Quantity-First med display (reversible in Settings), Dark Mode (black) / Light Mode (Ravens purple), Clear button per person, Expand/Collapse completed slots, and pinned bottom Call bar.
+- 2026-11-24: Overnight design decisions (`docs/mockups/overnight-decisions.html`): 1A (Video Messages pop-up banner + player), 2A (Keep Apps Script /exec), 3A (Doctor & Video section in Settings + Call Doctor), 4A (Browser Speech-to-Text + local date/time Smart To Do parser), 5A (5-across tall Call grid with name+icon only + 1-row landscape meds).
