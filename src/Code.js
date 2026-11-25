@@ -60,3 +60,11 @@ function apiSaveTodos(todos) {
 function apiSaveNotes(notes) {
   return saveNotes(notes);
 }
+
+function apiGetVideos() {
+  return getDriveVideos();
+}
+
+function apiMarkVideoWatched(videoId) {
+  return markVideoWatched(videoId);
+}
