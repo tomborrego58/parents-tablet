@@ -140,8 +140,12 @@ function runScheduledChecks(nowOpt) {
     });
   }
 
-  // 2. Daily 9pm summary email
-  if (cfg.alertEmail && now.getHours() >= (cfg.dailySummaryHour || 21) && !dayAlerts.summarySent) {
+  // 2. Daily summary email (default 21:00)
+  var summaryTargetMin = cfg.dailySummaryTime
+    ? parseHHMMToMinutes_(cfg.dailySummaryTime, 21 * 60)
+    : ((cfg.dailySummaryHour !== undefined ? cfg.dailySummaryHour : 21) * 60);
+  var nowMin = now.getHours() * 60 + now.getMinutes();
+  if (cfg.alertEmail && nowMin >= summaryTargetMin && !dayAlerts.summarySent) {
     var summaryBody = buildDailySummaryText_(todayKey, slots, meds, dayLogs, now);
     sendMailSafe_(cfg.alertEmail, "Parents' Tablet: Daily Summary (" + todayKey + ')', summaryBody);
     dayAlerts.summarySent = true;
@@ -222,20 +226,43 @@ function importPhotoEmails() {
   return savedCount;
 }
 
-function notifyCall(who) {
+function notifyCall(who, customUrl) {
   var props = getProps_();
   var cfg = getConfig_(props);
-  var isKatie = who === 'katie';
-  var name = isKatie ? 'Katie' : 'Tom';
-  var email = isKatie ? cfg.katieEmail : cfg.alertEmail;
-  var meetUrl = (isKatie && cfg.meetUrlKatie) ? cfg.meetUrlKatie : cfg.meetUrlTom;
+  var key = String(who || 'tom').toLowerCase();
+  var name = who ? (who.charAt(0).toUpperCase() + who.slice(1)) : 'Tom';
+  var email = '';
+  var meetUrl = customUrl || '';
+
+  if (key === 'tom') {
+    name = 'Tom';
+    email = cfg.alertEmail;
+    meetUrl = meetUrl || cfg.meetUrlTom;
+  } else if (key === 'katie') {
+    name = 'Katie';
+    email = cfg.katieEmail;
+    meetUrl = meetUrl || cfg.meetUrlKatie;
+  } else if (key === 'matt') {
+    name = 'Matt';
+    meetUrl = meetUrl || cfg.meetUrlMatt;
+  } else if (key === 'laura') {
+    name = 'Laura';
+    meetUrl = meetUrl || cfg.meetUrlLaura;
+  }
+
+  if (!meetUrl && Array.isArray(cfg.meetContacts)) {
+    var match = cfg.meetContacts.find(function (c) {
+      return c.name && c.name.toLowerCase() === key;
+    });
+    if (match && match.url) meetUrl = match.url;
+  }
 
   var emailed = false;
   if (email) {
     var body = 'Gene & Peggy tapped "Call ' + name + '" on the tablet.' +
       (meetUrl ? '\n\nTap to join Google Meet:\n' + meetUrl : '');
     emailed = sendMailSafe_(email, "Parents' Tablet: Call " + name, body);
-    if (!isKatie && cfg.smsGatewayEmail) {
+    if (key === 'tom' && cfg.smsGatewayEmail) {
       sendMailSafe_(cfg.smsGatewayEmail, 'Tablet Call', 'Parents tapped Call Tom: ' + (meetUrl || 'open Meet'));
     }
   }

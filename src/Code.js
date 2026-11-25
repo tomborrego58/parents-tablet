@@ -21,6 +21,10 @@ function apiToggleDose(medId, dateKey) {
   return toggleMedDose(medId, dateKey);
 }
 
+function apiClearPersonLogs(person, dateKey) {
+  return clearPersonLogs(person, dateKey);
+}
+
 function apiSaveMed(medInput) {
   return saveMed(medInput);
 }
@@ -45,6 +49,14 @@ function apiGetPhotos() {
   return getDrivePhotos();
 }
 
-function apiNotifyCall(who) {
-  return notifyCall(who);
+function apiNotifyCall(who, customUrl) {
+  return notifyCall(who, customUrl);
+}
+
+function apiSaveTodos(todos) {
+  return saveTodos(todos);
+}
+
+function apiSaveNotes(notes) {
+  return saveNotes(notes);
 }
