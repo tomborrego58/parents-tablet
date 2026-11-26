@@ -106,6 +106,7 @@ Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser,
 - **Voice Smart To Do (4A):** Big 🎤 Voice button + Who pills (`Gene`, `Peggy`, `Tom`, `Katie`) + local date/time parser.
 - **Apps Script top banner (2A → 2B planned next):** Kept `/exec` for now; switching to **2B (GitHub Pages frontend)** next will remove the Google top banner AND unlock the in-app `🎤 Voice` button (currently blocked by Apps Script's iframe).
 - **Tablet auto-updates (revisit later):** Consider turning off automatic Android OS updates/reboots on the Galaxy Tab A11+ so overnight reboots don't unpin the app.
+- **Auto-return after call (next):** Explore returning automatically to the pinned web app after a Google Voice/Meet call ends.
 - **Morning review items (decided overnight for Tom to confirm):**
   - Free text alerts: added optional carrier SMS-gateway email field in Settings (e.g. `@vtext.com` / `@txt.att.net`).
   - Meet buttons: two separate buttons (**Call Tom** + **Call Katie**) with fixed Meet links + email alerts.
