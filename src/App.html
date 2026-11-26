@@ -228,13 +228,13 @@
         return;
       }
 
-      var effMs = Math.max(parseTodayTime(now, slot.time), activeWaitUntil);
+      var baseMs = parseTodayTime(now, slot.time);
       var entry = {
         slot: slot,
         meds: slotMeds,
-        effectiveMs: effMs,
-        effectiveTimeStr: formatClock(new Date(effMs)),
-        isDue: nowMs >= effMs
+        effectiveMs: baseMs,
+        effectiveTimeStr: formatClock(new Date(baseMs)),
+        isDue: nowMs >= baseMs
       };
       if (entry.isDue) dueSlots.push(entry);
       else laterSlots.push(entry);
