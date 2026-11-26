@@ -237,11 +237,25 @@ function getAvatarMap() {
     var m = raw.match(/\/d\/([a-zA-Z0-9_-]+)/) || raw.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     if (!m) return;
     try {
-      var file = DriveApp.getFileById(m[1]);
-      var blob = file.getBlob();
-      var mime = blob.getContentType() || 'image/jpeg';
-      var b64 = Utilities.base64Encode(blob.getBytes());
-      if (b64.length < 400000) {
+      var b64 = '';
+      var mime = 'image/jpeg';
+      if (typeof UrlFetchApp !== 'undefined') {
+        try {
+          var thumbResp = UrlFetchApp.fetch('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w300', { muteHttpExceptions: true });
+          if (thumbResp.getResponseCode() === 200) {
+            var tb = thumbResp.getBlob();
+            mime = tb.getContentType() || 'image/jpeg';
+            b64 = Utilities.base64Encode(tb.getBytes());
+          }
+        } catch (err) {}
+      }
+      if (!b64) {
+        var file = DriveApp.getFileById(m[1]);
+        var blob = file.getBlob();
+        mime = blob.getContentType() || 'image/jpeg';
+        b64 = Utilities.base64Encode(blob.getBytes());
+      }
+      if (b64 && b64.length < 600000) {
         map[raw] = 'data:' + mime + ';base64,' + b64;
       }
     } catch (e) {}
