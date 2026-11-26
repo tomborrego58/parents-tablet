@@ -328,8 +328,8 @@
         '<div class="box' + (log ? ' on' : '') + '">' + (log ? '✓' : '') + '</div>' +
         '<div class="med-body">' +
           '<div class="med-line">' +
-            '<div class="mname">' + esc(title) + '</div>' +
-            (details.length ? '<div class="mdose">' + esc(details.join(' · ')) + '</div>' : '') +
+            '<span class="mname">' + esc(title) + '</span>' +
+            (details.length ? ' <span class="mdose">· ' + esc(details.join(' · ')) + '</span>' : '') +
           '</div>' +
           warnHtml +
         '</div>' +
@@ -338,7 +338,7 @@
   }
 
   function renderColumn(person, label, pView) {
-    var html = '<div class="col ' + person + '">' +
+    var html = '<div class="col-wrap"><div class="col ' + person + '">' +
       '<div class="col-head">' +
         '<div class="name">' + label + '</div>' +
         '<div style="display:flex;gap:8px">' +
@@ -347,7 +347,7 @@
         '</div>' +
       '</div>';
     if (!pView.doneSlots.length && !pView.visibleSlots.length && !pView.laterSlots.length && !pView.prnMeds.length) {
-      return html + '<div class="empty-msg">No medications scheduled yet. Tap Edit Meds below to add.</div></div>';
+      return html + '<div class="empty-msg">No medications scheduled yet. Tap Edit above to add.</div></div></div>';
     }
     pView.doneSlots.forEach(function (d) {
       var expKey = person + ':' + d.slot.id;
@@ -391,8 +391,8 @@
       pView.prnMeds.forEach(function (m) { html += renderMedRow(m, true); });
       html += '</div>';
     }
-    html += '<button type="button" class="scroll-hint" data-scroll-col="' + person + '">↓ Scroll for more</button>';
-    return html + '</div>';
+    html += '</div><button type="button" class="scroll-hint" data-scroll-col="' + person + '">↓ Scroll for more</button></div>';
+    return html;
   }
 
   function renderEditScreen() {
@@ -909,28 +909,29 @@
   function renderCallPeopleView() {
     var cfg = state.config || {};
     var contacts = getMeetContactsFromConfig(cfg);
-    var colors = ['#1f8a3b', '#0f766e', '#7c3aed', '#b45309', '#2f5fb3', '#8a3fa8'];
-    var cards = contacts.filter(function (c) { return c.name; }).map(function (c, idx) {
-      var bg = colors[idx % colors.length];
-      var mapped = c.photoUrl && state.avatarMap ? state.avatarMap[String(c.photoUrl).trim()] : '';
-      var imgUrl = mapped || normalizeAvatarUrl(c.photoUrl);
-      var inner = (imgUrl
-        ? '<img class="call-tile-img" src="' + esc(imgUrl) + '" alt="">'
-        : '<span class="call-tile-init">' + esc(c.name.charAt(0).toUpperCase()) + '</span>') +
-        '<span class="call-tile-name">' + esc(c.name) + '</span>';
+    var meetAppIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.tachyon;end';
 
-      if (c.phone) {
-        return '<a class="btn call-card" style="background:' + bg + ';text-decoration:none" href="tel:' + esc(c.phone) + '">' + inner + '</a>';
-      }
-      return '<button type="button" class="btn call-card" style="background:' + bg + '" data-call-extra="' + esc(c.name) + '" data-call-url="' + esc(c.url || '') + '">' + inner + '</button>';
+    var cards = contacts.filter(function (c) { return c.name; }).map(function (c) {
+      var phoneBtn = c.phone
+        ? '<a class="call-big-btn" style="background:#1f8a3b" href="tel:' + esc(c.phone) + '">📞 Phone</a>'
+        : '<button type="button" class="call-big-btn" style="background:#5b5b5b" onclick="return false;">📞 No Phone</button>';
+      var videoBtn = '<a class="call-big-btn" style="background:#2f5fb3" href="' + meetAppIntent + '">📹 Video</a>';
+
+      return (
+        '<div class="call-person-card">' +
+          '<div class="call-person-head">' + avatarHtml(c.name, c.photoUrl) + '<span>' + esc(c.name) + '</span></div>' +
+          '<div class="call-person-btns">' + phoneBtn + videoBtn + '</div>' +
+        '</div>'
+      );
     });
+
     if (cfg.doctorPhone) {
       var docName = cfg.doctorName || 'Doctor';
       cards.push(
-        '<a class="btn call-card" style="background:#c62828;text-decoration:none" href="tel:' + esc(cfg.doctorPhone) + '">' +
-          '<span class="call-tile-init">' + esc(docName.charAt(0).toUpperCase()) + '</span>' +
-          '<span class="call-tile-name">' + esc(docName) + '</span>' +
-        '</a>'
+        '<div class="call-person-card">' +
+          '<div class="call-person-head">' + avatarHtml(docName, '') + '<span>' + esc(docName) + '</span></div>' +
+          '<div class="call-person-btns"><a class="call-big-btn" style="background:#c62828" href="tel:' + esc(cfg.doctorPhone) + '">📞 Phone</a></div>' +
+        '</div>'
       );
     }
     return '<div class="edit-body"><div class="call-grid">' + cards.join('') + '</div></div>';
@@ -1049,9 +1050,10 @@
   }
 
   function updateScrollHints() {
-    document.querySelectorAll('.col').forEach(function (col) {
-      var hint = col.querySelector('.scroll-hint');
-      if (!hint) return;
+    document.querySelectorAll('.col-wrap').forEach(function (wrap) {
+      var col = wrap.querySelector('.col');
+      var hint = wrap.querySelector('.scroll-hint');
+      if (!col || !hint) return;
       var more = col.scrollHeight > col.clientHeight + col.scrollTop + 10;
       hint.classList.toggle('show', more);
     });
@@ -1064,7 +1066,8 @@
     });
     document.querySelectorAll('[data-scroll-col]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var col = btn.closest('.col');
+        var wrap = btn.closest('.col-wrap');
+        var col = wrap ? wrap.querySelector('.col') : null;
         if (col) col.scrollBy({ top: 180, behavior: 'smooth' });
       });
     });

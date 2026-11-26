@@ -65,8 +65,10 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [x] **6. Tablet setup and handover:** always-on screen, app pinning, 1-page "how to use it" sheet (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Tom: review the live Web App (`@11`) on the Galaxy Tab A11+ and paste Drive photo folder URL + Google Meet URLs in **⚙️ Settings**.
-2. Follow `docs/TABLET-CLEANUP.md` (ADB debloat + privacy) and `docs/HANDOVER.md` (Google Contacts for Meet incoming calls, always-on screen, app pinning, printable sheet).
+1. Install **Fully Kiosk Browser** (~US$9 once, approved by Tom 2026-11-25) on Galaxy Tab A11+ to remove Chrome's URL/tab bar, hide Android's bottom bar, and auto-return to the app after Google Voice/Meet calls.
+2. Make 1-time Google Meet calls to Tom, Katie, Laura, and Matt so they stay on Meet's main screen.
+3. Build **2B (GitHub Pages frontend)** to remove the Apps Script top banner and unlock the in-app `🎤 Voice` button.
+4. Paste Drive Photo/Video folder URLs in **⚙️ Settings** if not yet set.
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
@@ -106,6 +108,7 @@ Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser,
 - **Voice Smart To Do (4A):** Big 🎤 Voice button + Who pills (`Gene`, `Peggy`, `Tom`, `Katie`) + local date/time parser.
 - **Apps Script top banner (2A → 2B planned next):** Kept `/exec` for now; switching to **2B (GitHub Pages frontend)** next will remove the Google top banner AND unlock the in-app `🎤 Voice` button (currently blocked by Apps Script's iframe).
 - **Tablet auto-updates (revisit later):** Consider turning off automatic Android OS updates/reboots on the Galaxy Tab A11+ so overnight reboots don't unpin the app.
+- **Auto-return after call (next):** Explore returning automatically to the pinned web app after a Google Voice/Meet call ends.
 - **Morning review items (decided overnight for Tom to confirm):**
   - Free text alerts: added optional carrier SMS-gateway email field in Settings (e.g. `@vtext.com` / `@txt.att.net`).
   - Meet buttons: two separate buttons (**Call Tom** + **Call Katie**) with fixed Meet links + email alerts.
