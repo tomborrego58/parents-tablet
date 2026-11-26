@@ -68,3 +68,7 @@ function apiGetVideos() {
 function apiMarkVideoWatched(videoId) {
   return markVideoWatched(videoId);
 }
+
+function apiGetAvatars() {
+  return getAvatarMap();
+}

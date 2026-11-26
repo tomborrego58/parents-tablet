@@ -224,6 +224,31 @@ function getDriveVideos() {
   }
 }
 
+function getAvatarMap() {
+  var props = getProps_();
+  var cfg = getConfig_(props);
+  var contacts = Array.isArray(cfg.meetContacts) ? cfg.meetContacts : [];
+  var map = {};
+  if (typeof DriveApp === 'undefined' || typeof Utilities === 'undefined') return map;
+
+  contacts.forEach(function (c) {
+    var raw = c && c.photoUrl ? String(c.photoUrl).trim() : '';
+    if (!raw || map[raw]) return;
+    var m = raw.match(/\/d\/([a-zA-Z0-9_-]+)/) || raw.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (!m) return;
+    try {
+      var file = DriveApp.getFileById(m[1]);
+      var blob = file.getBlob();
+      var mime = blob.getContentType() || 'image/jpeg';
+      var b64 = Utilities.base64Encode(blob.getBytes());
+      if (b64.length < 400000) {
+        map[raw] = 'data:' + mime + ';base64,' + b64;
+      }
+    } catch (e) {}
+  });
+  return map;
+}
+
 /**
  * Checks unread emails with image attachments and saves them into the Drive photo folder.
  */

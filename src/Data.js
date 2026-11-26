@@ -37,6 +37,7 @@ function getDefaultConfig_() {
     missedDelayMin: 120,
     soundType: 'chime',
     soundRepeat: 1,
+    alarmBanner: 'yes',
     snoozeMin: 10,
     dailySummaryTime: '21:00',
     theme: 'light',

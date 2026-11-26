@@ -13,6 +13,7 @@
     notes: [],
     photos: [],
     videos: [],
+    avatarMap: {},
     activeVideo: null,
     todoWho: 'Both',
     todoFrom: 'Gene',
@@ -37,6 +38,22 @@
 
   var toastTimer = null;
   var audioCtx = null;
+  var wakeLockObj = null;
+
+  function requestWakeLock() {
+    try {
+      if (navigator.wakeLock && !wakeLockObj) {
+        navigator.wakeLock.request('screen').then(function (wl) {
+          wakeLockObj = wl;
+          wl.addEventListener('release', function () { wakeLockObj = null; });
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') requestWakeLock();
+  });
 
   function showToast(msg) {
     var el = document.getElementById('toast');
@@ -99,6 +116,7 @@
   }
 
   function unlockAudio() {
+    requestWakeLock();
     try {
       var Ctx = window.AudioContext || window.webkitAudioContext;
       if (Ctx && !audioCtx) audioCtx = new Ctx();
@@ -323,7 +341,10 @@
     var html = '<div class="col ' + person + '">' +
       '<div class="col-head">' +
         '<div class="name">' + label + '</div>' +
-        '<button type="button" class="clear-btn" data-clear-person="' + person + '">Clear</button>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button type="button" class="clear-btn" data-edit-person="' + person + '">Edit</button>' +
+          '<button type="button" class="clear-btn" data-clear-person="' + person + '">Clear</button>' +
+        '</div>' +
       '</div>';
     if (!pView.doneSlots.length && !pView.visibleSlots.length && !pView.laterSlots.length && !pView.prnMeds.length) {
       return html + '<div class="empty-msg">No medications scheduled yet. Tap Edit Meds below to add.</div></div>';
@@ -370,6 +391,7 @@
       pView.prnMeds.forEach(function (m) { html += renderMedRow(m, true); });
       html += '</div>';
     }
+    html += '<button type="button" class="scroll-hint" data-scroll-col="' + person + '">↓ Scroll for more</button>';
     return html + '</div>';
   }
 
@@ -542,7 +564,8 @@
       return (
         '<div class="meet-row" data-meet-idx="' + idx + '">' +
           '<input class="field name-in" data-meet-name="' + idx + '" value="' + esc(mc.name) + '" placeholder="Name">' +
-          '<input class="field url-in" data-meet-url="' + idx + '" value="' + esc(mc.url) + '" placeholder="https://meet.google.com/...">' +
+          '<input class="field phone-in" data-meet-phone="' + idx + '" value="' + esc(mc.phone || '') + '" placeholder="Phone (tel)">' +
+          '<input class="field url-in" data-meet-url="' + idx + '" value="' + esc(mc.url) + '" placeholder="Meet URL (optional)">' +
           '<input class="field photo-in" data-meet-photo="' + idx + '" value="' + esc(mc.photoUrl || '') + '" placeholder="Photo URL (optional)">' +
           (idx >= 4 ? '<button type="button" class="sm-btn red" data-del-meet="' + idx + '">✕</button>' : '') +
         '</div>'
@@ -552,8 +575,8 @@
     return (
       '<div class="settings-grid">' +
         '<div class="settings-col">' +
-          '<div class="lbl">Tom Alert Email</div><input class="field" id="s-alertEmail" value="' + esc(c.alertEmail) + '">' +
-          '<div class="lbl">Katie Alert Email</div><input class="field" id="s-katieEmail" value="' + esc(c.katieEmail) + '">' +
+          '<div class="lbl">Tom Email</div><input class="field" id="s-alertEmail" value="' + esc(c.alertEmail) + '">' +
+          '<div class="lbl">Katie Email</div><input class="field" id="s-katieEmail" value="' + esc(c.katieEmail) + '">' +
           '<div class="lbl">Quiet Hours Start</div><input type="time" class="field" id="s-quietStart" value="' + esc(c.quietStart || '21:00') + '">' +
           '<div class="lbl">Quiet Hours End</div><input type="time" class="field" id="s-quietEnd" value="' + esc(c.quietEnd || '08:00') + '">' +
           '<div class="lbl">Daily Summary Email Time</div><input type="time" class="field" id="s-dailySummaryTime" value="' + esc(sumTime) + '">' +
@@ -573,6 +596,10 @@
             '<option value="chime"' + (c.soundType === 'chime' ? ' selected' : '') + '>Gentle Chime</option>' +
             '<option value="bell"' + (c.soundType === 'bell' ? ' selected' : '') + '>Louder Bell</option>' +
             '<option value="voice"' + (c.soundType === 'voice' ? ' selected' : '') + '>Spoken Message</option>' +
+          '</select>' +
+          '<div class="lbl">Alarm Banner</div><select class="field" id="s-alarmBanner">' +
+            '<option value="yes"' + (c.alarmBanner !== 'no' ? ' selected' : '') + '>Yes</option>' +
+            '<option value="no"' + (c.alarmBanner === 'no' ? ' selected' : '') + '>No</option>' +
           '</select>' +
           '<div class="lbl">Snooze Minutes</div><input type="number" class="field" id="s-snoozeMin" value="' + esc(c.snoozeMin || 10) + '">' +
         '</div>' +
@@ -607,13 +634,14 @@
     var s = String(raw).trim();
     var m = s.match(/\/d\/([a-zA-Z0-9_-]+)/) || s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     if (m && s.indexOf('drive.google.com') !== -1) {
-      return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200';
+      return 'https://lh3.googleusercontent.com/d/' + m[1] + '=s200';
     }
     return s;
   }
 
   function avatarHtml(name, photoUrl) {
-    var u = normalizeAvatarUrl(photoUrl);
+    var mapped = photoUrl && state.avatarMap ? state.avatarMap[String(photoUrl).trim()] : '';
+    var u = mapped || normalizeAvatarUrl(photoUrl);
     if (u) {
       return '<span class="avatar"><img src="' + esc(u) + '" alt=""></span>';
     }
@@ -657,19 +685,25 @@
           '<div class="clock">' + esc(formatClock(now)) + '</div>' +
           '<div class="day">' + esc(formatDateLine(now)) + '</div>' +
         '</div>' +
-        '<button type="button" class="sm-btn" style="background:#5b5b5b" id="btn-edit">Edit Meds</button>' +
       '</div>'
     );
   }
 
   function renderCallBar() {
+    var btnFor = function (name, cls, id) {
+      var c = getContactByName(name);
+      if (c && c.phone) {
+        return '<a class="btn ' + cls + '" style="text-decoration:none" href="tel:' + esc(c.phone) + '">' + avatarHtml(name, c.photoUrl) + ' Call ' + esc(name) + '</a>';
+      }
+      return '<button class="btn ' + cls + '" id="' + id + '">' + avatarHtml(name, c.photoUrl) + ' Call ' + esc(name) + '</button>';
+    };
     return (
       '<div class="foot">' +
         '<div class="foot-row">' +
-          '<button class="btn call" id="btn-call-tom">' + avatarHtml('Tom', getContactByName('Tom').photoUrl) + ' Call Tom</button>' +
-          '<button class="btn call-katie" id="btn-call-katie">' + avatarHtml('Katie', getContactByName('Katie').photoUrl) + ' Call Katie</button>' +
-          '<button class="btn call-laura" id="btn-call-laura">' + avatarHtml('Laura', getContactByName('Laura').photoUrl) + ' Call Laura</button>' +
-          '<button class="btn call-matt" id="btn-call-matt">' + avatarHtml('Matt', getContactByName('Matt').photoUrl) + ' Call Matt</button>' +
+          btnFor('Tom', 'call', 'btn-call-tom') +
+          btnFor('Katie', 'call-katie', 'btn-call-katie') +
+          btnFor('Laura', 'call-laura', 'btn-call-laura') +
+          btnFor('Matt', 'call-matt', 'btn-call-matt') +
           '<button class="btn call-others" id="btn-call-others">📞 Call Others</button>' +
         '</div>' +
       '</div>'
@@ -820,7 +854,7 @@
               '<td style="width:46px"><div class="box' + (td.done ? ' on' : '') + '" data-toggle-todo="' + realIdx + '" style="cursor:pointer">' + (td.done ? '✓' : '') + '</div></td>' +
               '<td style="width:76px;white-space:nowrap">' + esc(formatMMDD(td.dateISO)) + '</td>' +
               '<td style="width:94px;white-space:nowrap">' + esc(td.timeStr || '—') + '</td>' +
-              '<td style="width:86px"><span class="who-tag">' + esc(td.who || 'Both') + '</span></td>' +
+              '<td style="width:86px"><span class="who-tag ' + esc((td.who || 'Both').toLowerCase()) + '">' + esc(td.who || 'Both') + '</span></td>' +
               '<td class="todo-desc" data-toggle-todo="' + realIdx + '" style="cursor:pointer">' + esc(desc) + '</td>' +
               '<td style="width:86px;white-space:nowrap">' + esc(td.from || '') + '</td>' +
               '<td style="width:60px;vertical-align:bottom">' +
@@ -833,20 +867,21 @@
         }).join('')
       : '<tr><td colspan="7" style="text-align:center;padding:24px;color:#666">No notes or tasks yet.</td></tr>';
 
+    var inIframe = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
     var popupHtml = '';
     if (state.todoPopupOpen) {
       popupHtml =
         '<div class="dlg"><div class="c" style="text-align:left;max-width:1120px;width:94%;padding:24px 28px">' +
-          '<div class="lbl" style="margin-top:0">From</div><div>' + fromPills + '</div>' +
-          '<div class="lbl">For</div><div>' + whoPills + '</div>' +
+          '<div class="lbl" style="margin-top:0">For</div><div>' + whoPills + '</div>' +
+          '<div class="lbl">From</div><div>' + fromPills + '</div>' +
           '<div style="display:flex;gap:12px;margin-top:6px">' +
             '<div style="width:180px"><div class="lbl" style="margin-top:4px">Date</div><input type="date" class="field" id="todo-date" value="' + esc(state.todoDate) + '"></div>' +
             '<div style="width:140px"><div class="lbl" style="margin-top:4px">Time</div><input class="field" id="todo-time" value="' + esc(state.todoTime) + '" placeholder="e.g. 730"></div>' +
           '</div>' +
-          '<div class="lbl">Leave a note</div>' +
-          '<textarea class="field" id="todo-popup-text" rows="3" placeholder="Type or speak your note…">' + esc(state.todoDraft) + '</textarea>' +
+          '<div class="lbl">Add a task' + (inIframe ? ' <span style="font-size:15px;font-weight:600;color:#666">(tap 🎤 on tablet keyboard to dictate)</span>' : '') + '</div>' +
+          '<textarea class="field" id="todo-popup-text" rows="3" placeholder="Add a task…">' + esc(state.todoDraft) + '</textarea>' +
           '<div style="display:flex;gap:12px;margin-top:16px">' +
-            '<button type="button" class="btn red' + (state.isListening ? ' listening' : '') + '" style="height:68px" id="btn-popup-voice">' + (state.isListening ? 'Listening…' : '🎤 Voice') + '</button>' +
+            (inIframe ? '' : '<button type="button" class="btn red' + (state.isListening ? ' listening' : '') + '" style="height:68px" id="btn-popup-voice">' + (state.isListening ? 'Listening…' : '🎤 Voice') + '</button>') +
             '<button type="button" class="btn call" style="height:68px" id="btn-popup-add">Add</button>' +
             '<button type="button" class="btn edit" style="height:68px;flex:0.6" id="btn-popup-cancel">Cancel</button>' +
           '</div>' +
@@ -854,13 +889,11 @@
     }
 
     return (
-      '<div class="edit-body">' +
-        '<div class="item" style="margin-bottom:14px">' +
-          '<div style="display:flex;gap:10px;width:100%">' +
-            '<input class="field" id="todo-input" value="' + esc(state.todoDraft) + '" placeholder="Leave a note…" readonly style="cursor:pointer;flex:1">' +
-            '<button type="button" class="sm-btn green" id="btn-add-todo">Add</button>' +
-            '<button type="button" class="mic-btn" id="btn-voice-todo">🎤 Voice</button>' +
-          '</div>' +
+      '<div class="todo-page">' +
+        '<div class="todo-bar">' +
+          '<input class="field" id="todo-input" value="' + esc(state.todoDraft) + '" placeholder="Add a task…" readonly style="cursor:pointer;flex:1">' +
+          '<button type="button" class="sm-btn green" id="btn-add-todo">Add</button>' +
+          (inIframe ? '' : '<button type="button" class="mic-btn" id="btn-voice-todo">🎤 Voice</button>') +
         '</div>' +
         '<div class="todo-table-wrap">' +
           '<table class="todo-table">' +
@@ -879,15 +912,24 @@
     var colors = ['#1f8a3b', '#0f766e', '#7c3aed', '#b45309', '#2f5fb3', '#8a3fa8'];
     var cards = contacts.filter(function (c) { return c.name; }).map(function (c, idx) {
       var bg = colors[idx % colors.length];
-      return '<button type="button" class="btn call-card" style="background:' + bg + '" data-call-extra="' + esc(c.name) + '" data-call-url="' + esc(c.url || '') + '">' +
-        avatarHtml(c.name, c.photoUrl) + '<span>' + esc(c.name) + '</span>' +
-      '</button>';
+      var mapped = c.photoUrl && state.avatarMap ? state.avatarMap[String(c.photoUrl).trim()] : '';
+      var imgUrl = mapped || normalizeAvatarUrl(c.photoUrl);
+      var inner = (imgUrl
+        ? '<img class="call-tile-img" src="' + esc(imgUrl) + '" alt="">'
+        : '<span class="call-tile-init">' + esc(c.name.charAt(0).toUpperCase()) + '</span>') +
+        '<span class="call-tile-name">' + esc(c.name) + '</span>';
+
+      if (c.phone) {
+        return '<a class="btn call-card" style="background:' + bg + ';text-decoration:none" href="tel:' + esc(c.phone) + '">' + inner + '</a>';
+      }
+      return '<button type="button" class="btn call-card" style="background:' + bg + '" data-call-extra="' + esc(c.name) + '" data-call-url="' + esc(c.url || '') + '">' + inner + '</button>';
     });
     if (cfg.doctorPhone) {
       var docName = cfg.doctorName || 'Doctor';
       cards.push(
         '<a class="btn call-card" style="background:#c62828;text-decoration:none" href="tel:' + esc(cfg.doctorPhone) + '">' +
-          avatarHtml(docName, '') + '<span>' + esc(docName) + '</span>' +
+          '<span class="call-tile-init">' + esc(docName.charAt(0).toUpperCase()) + '</span>' +
+          '<span class="call-tile-name">' + esc(docName) + '</span>' +
         '</a>'
       );
     }
@@ -933,29 +975,19 @@
     if (state.view === 'edit') {
       app.innerHTML = renderEditScreen();
     } else if (state.view === 'photos') {
-      var bannerText = '';
-      if (peggyView.dueSlots.length) bannerText = '💊 Peggy: ' + peggyView.dueSlots[0].slot.name + ' meds now';
-      else if (geneView.dueSlots.length) bannerText = '💊 Gene: ' + geneView.dueSlots[0].slot.name + ' meds now';
-
       var photoHtml = (state.photos && state.photos.length)
         ? '<img class="ph-img" src="' + esc(state.photos[state.photoIdx % state.photos.length].url) + '" alt="Family photo">'
-        : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in Settings</span></div>';
+        : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in ⚙️ Settings</span></div>';
 
       app.innerHTML =
-        '<div class="screen-photos">' +
-          photoHtml +
-          '<div class="ph-clock">' +
-            '<div class="time">' + esc(formatClock(now)) + '</div>' +
-            '<div class="date">' + esc(formatDateLine(now)) + '</div>' +
-            (!state.audioUnlocked ? '<div class="sound-pill" id="btn-unlock-sound">🔊 Tap once to enable sound</div>' : '') +
+        '<div class="screen-meds">' +
+          renderTopBar(now) +
+          renderMainTabs() +
+          renderVideoBanner() +
+          '<div class="screen-photos">' +
+            photoHtml +
+            (!state.audioUnlocked ? '<div class="sound-pill" style="position:absolute;top:16px;left:16px;z-index:2" id="btn-unlock-sound">🔊 Tap once to enable sound</div>' : '') +
           '</div>' +
-          '<div class="ph-actions">' +
-            '<button class="btn call" id="btn-call-tom">📞 Call Tom</button>' +
-            '<button class="btn call-katie" id="btn-call-katie">📞 Call Katie</button>' +
-            '<button class="btn photos" id="btn-to-meds">💊 Meds</button>' +
-          '</div>' +
-          (state.videos && state.videos.length ? '<div class="banner" style="bottom:' + (bannerText ? '150px' : '24px') + ';background:#dbeafe" id="btn-watch-video"><div>🎥 New family video message (' + state.videos.length + ')</div><div class="go">Watch</div></div>' : '') +
-          (bannerText ? '<div class="banner" id="open-meds-banner"><div>' + esc(bannerText) + '</div><div class="go">Open meds</div></div>' : '') +
           renderVideoModal() +
         '</div>';
     } else if (state.view === 'todo') {
@@ -965,7 +997,8 @@
     } else if (state.view === 'settings') {
       app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + '<div class="edit-body">' + renderSettingsTab() + '</div></div>';
     } else {
-      var showAlarmBar = !!dueKey && now.getTime() >= state.snoozedUntilMs && !isInQuietHours(now);
+      var showAlarmBar = (!state.config || state.config.alarmBanner !== 'no') &&
+        !!dueKey && now.getTime() >= state.snoozedUntilMs && !isInQuietHours(now);
       var snoozeMin = (state.config && state.config.snoozeMin) || 10;
       var alarmBarHtml = showAlarmBar
         ? '<div class="alarm-bar"><div>🔔 Time for medications</div><button class="snooze-btn" id="btn-snooze">Snooze ' + snoozeMin + ' min</button></div>'
@@ -1015,7 +1048,26 @@
     if (res.notes) state.notes = res.notes;
   }
 
+  function updateScrollHints() {
+    document.querySelectorAll('.col').forEach(function (col) {
+      var hint = col.querySelector('.scroll-hint');
+      if (!hint) return;
+      var more = col.scrollHeight > col.clientHeight + col.scrollTop + 10;
+      hint.classList.toggle('show', more);
+    });
+  }
+
   function bindEvents(dueKey) {
+    setTimeout(updateScrollHints, 50);
+    document.querySelectorAll('.col').forEach(function (col) {
+      col.addEventListener('scroll', updateScrollHints);
+    });
+    document.querySelectorAll('[data-scroll-col]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var col = btn.closest('.col');
+        if (col) col.scrollBy({ top: 180, behavior: 'smooth' });
+      });
+    });
     var medEls = document.querySelectorAll('[data-med-id]');
     for (var i = 0; i < medEls.length; i++) medEls[i].addEventListener('click', onMedTap);
 
@@ -1124,12 +1176,13 @@
       });
     });
 
-    var editBtn = document.getElementById('btn-edit');
-    if (editBtn) editBtn.addEventListener('click', function () {
-      unlockAudio();
-      state.view = 'edit';
-      state.editTab = 'list';
-      render();
+    document.querySelectorAll('[data-edit-person]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        unlockAudio();
+        state.view = 'edit';
+        state.editTab = 'list';
+        render();
+      });
     });
 
     var settingsBtn = document.getElementById('btn-settings');
@@ -1344,6 +1397,11 @@
       startVoiceIntoPopup();
     });
 
+    var popupTa = document.getElementById('todo-popup-text');
+    if (popupTa) popupTa.addEventListener('input', function () {
+      state.todoDraft = popupTa.value;
+    });
+
     var popupVoiceBtn = document.getElementById('btn-popup-voice');
     if (popupVoiceBtn) popupVoiceBtn.addEventListener('click', startVoiceIntoPopup);
 
@@ -1351,6 +1409,7 @@
     if (popupCancelBtn) popupCancelBtn.addEventListener('click', function () {
       state.todoPopupOpen = false;
       state.isListening = false;
+      state.todoDraft = '';
       render();
     });
 
@@ -1453,7 +1512,7 @@
       });
     });
 
-    document.querySelectorAll('[id^="s-"], [data-meet-name], [data-meet-url], [data-meet-photo]').forEach(function (el) {
+    document.querySelectorAll('[id^="s-"], [data-meet-name], [data-meet-phone], [data-meet-url], [data-meet-photo]').forEach(function (el) {
       el.addEventListener('change', function () {
         saveSettingsFromDom(true);
       });
@@ -1462,7 +1521,7 @@
     var addMeetBtn = document.getElementById('btn-add-meet');
     if (addMeetBtn) addMeetBtn.addEventListener('click', function () {
       var contacts = readMeetContactsFromDom();
-      contacts.push({ name: '', url: '', photoUrl: '' });
+      contacts.push({ name: '', phone: '', url: '', photoUrl: '' });
       state.config.meetContacts = contacts;
       render();
     });
@@ -1484,10 +1543,12 @@
     var list = [];
     rows.forEach(function (row) {
       var n = row.querySelector('[data-meet-name]');
+      var ph = row.querySelector('[data-meet-phone]');
       var u = row.querySelector('[data-meet-url]');
       var p = row.querySelector('[data-meet-photo]');
       list.push({
         name: n ? n.value.trim() : '',
+        phone: ph ? ph.value.trim() : '',
         url: u ? u.value.trim() : '',
         photoUrl: p ? p.value.trim() : ''
       });
@@ -1513,10 +1574,13 @@
       var ta = document.getElementById('todo-popup-text');
       if (ta) ta.focus();
     };
-    rec.onerror = function () {
+    rec.onerror = function (ev) {
       state.isListening = false;
       render();
-      showToast('Could not hear voice — try again');
+      var msg = (ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed'))
+        ? 'Mic blocked by Google Apps Script frame — tap 🎤 on the tablet keyboard instead'
+        : 'Could not hear voice — try again';
+      showToast(msg);
     };
     rec.start();
   }
@@ -1567,6 +1631,7 @@
       theme: document.getElementById('s-theme').value,
       medFormat: document.getElementById('s-medFormat').value,
       soundType: document.getElementById('s-soundType').value,
+      alarmBanner: document.getElementById('s-alarmBanner').value,
       snoozeMin: parseInt(document.getElementById('s-snoozeMin').value, 10) || 10
     };
     state.config = Object.assign({}, state.config, payload);
@@ -1577,6 +1642,7 @@
       google.script.run.withSuccessHandler(function (cfg) {
         state.config = cfg;
         loadPhotos();
+        loadAvatars();
         showToast('Saved');
       }).apiSaveConfig(payload);
     }
@@ -1638,6 +1704,15 @@
     }
   }
 
+  function loadAvatars() {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (map) {
+        state.avatarMap = map || {};
+        if (state.view === 'meds' || state.view === 'call') render();
+      }).apiGetAvatars();
+    }
+  }
+
   function loadVideos() {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (list) {
@@ -1648,8 +1723,10 @@
   }
 
   function loadState() {
+    if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (res) {
+        if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
         applyStateResponse(res);
         render();
       }).apiGetState();
@@ -1661,8 +1738,10 @@
   loadState();
   loadPhotos();
   loadVideos();
+  loadAvatars();
+  requestWakeLock();
   setInterval(function () {
-    if (state.view !== 'edit') render();
+    if (state.view !== 'edit' && state.view !== 'settings' && !state.todoPopupOpen) render();
   }, 15000);
   setInterval(function () {
     if (state.view === 'photos' && state.photos.length > 1) {
