@@ -65,9 +65,9 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [x] **6. Tablet setup and handover:** Fully Kiosk Browser PLUS configured (fullscreen, `Keep Screen On`, `Launch on Boot`, `Open Other URL Schemes`, `Voice` + `Meet` whitelisted, Android `○` Home returns straight to Parents' Tablet) (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Make 1-time Google Meet calls on the tablet to Tom, Katie, Laura, and Matt so they stay pinned on Meet's main screen.
-2. Paste Drive Photo/Video folder URLs (and Doctor phone when ready) in **⚙️ Settings** if not yet set.
-3. Build **2B (GitHub Pages frontend)** to remove the Google Apps Script top banner and unlock the in-app `🎤 Voice` button.
+1. Enable **GitHub Pages** (`Settings → Pages → main / docs`) — note: free GitHub Pages requires a public repo (zero secrets, emails, URLs, or health data are in this repo) or GitHub Pro. Then set Fully Kiosk **Start URL** to `https://tomborrego58.github.io/parents-tablet/app/?api=<WEB_APP_URL>`.
+2. Make 1-time Google Meet calls on the tablet to Tom, Katie, Laura, and Matt so they stay pinned on Meet's main screen.
+3. Paste Drive Photo/Video folder URLs (and Doctor phone when ready) in **⚙️ Settings** if not yet set.
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.

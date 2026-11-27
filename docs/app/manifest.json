@@ -1,0 +1,8 @@
+{
+  "name": "Parents' Tablet",
+  "short_name": "Parents' Tablet",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#241773",
+  "theme_color": "#241773"
+}
