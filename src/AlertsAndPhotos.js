@@ -215,7 +215,7 @@ function getPhotoDataUrl(fileId) {
       var blob = DriveApp.getFileById(fileId).getBlob();
       var mime = blob.getContentType() || 'image/jpeg';
       var b64 = Utilities.base64Encode(blob.getBytes());
-      if (b64.length < 2500000) {
+      if (b64.length < 8000000) {
         return 'data:' + mime + ';base64,' + b64;
       }
     }
