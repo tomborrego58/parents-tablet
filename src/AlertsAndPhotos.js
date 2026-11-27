@@ -175,8 +175,41 @@ function getDrivePhotos() {
 
   try {
     var folder = DriveApp.getFolderById(folderId);
-    var files = folder.getFiles();
     var out = [];
+    var subs = [];
+    var subIt = folder.getFolders();
+    while (subIt.hasNext()) {
+      subs.push(subIt.next());
+    }
+    subs.sort(function (a, b) {
+      return a.getName().localeCompare(b.getName());
+    });
+
+    if (subs.length > 0) {
+      var perSubCap = Math.max(40, Math.floor(350 / subs.length));
+      for (var i = 0; i < subs.length && out.length < 500; i++) {
+        var sub = subs[i];
+        var albumName = sub.getName();
+        var subFiles = sub.getFiles();
+        var count = 0;
+        while (subFiles.hasNext() && count < perSubCap && out.length < 500) {
+          var sf = subFiles.next();
+          var smime = sf.getMimeType() || '';
+          if (smime.indexOf('image/') === 0) {
+            var sid = sf.getId();
+            out.push({
+              id: sid,
+              name: sf.getName(),
+              album: albumName,
+              url: 'https://lh3.googleusercontent.com/d/' + sid + '=w1600'
+            });
+            count++;
+          }
+        }
+      }
+    }
+
+    var files = folder.getFiles();
     while (files.hasNext() && out.length < 500) {
       var f = files.next();
       var mime = f.getMimeType() || '';
@@ -185,6 +218,7 @@ function getDrivePhotos() {
         out.push({
           id: id,
           name: f.getName(),
+          album: '',
           url: 'https://lh3.googleusercontent.com/d/' + id + '=w1600'
         });
       }

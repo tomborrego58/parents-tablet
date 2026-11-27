@@ -760,6 +760,76 @@
     text-align: center;
     padding: 0 32px;
   }
+  .ph-albums {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .ph-album-btn {
+    pointer-events: auto;
+    border: 2px solid rgba(255, 255, 255, 0.65);
+    background: rgba(15, 23, 42, 0.72);
+    color: #fff;
+    font-size: 20px;
+    font-weight: 800;
+    padding: 8px 18px;
+    border-radius: 999px;
+    min-height: 46px;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
+  .ph-album-btn.active {
+    background: #1d4ed8;
+    border-color: #fde047;
+    color: #fff;
+  }
+  .ph-controls {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    z-index: 3;
+  }
+  .ph-ctrl-btn {
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+    padding: 10px 22px;
+    border-radius: 999px;
+    min-height: 52px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ph-ctrl-btn:active { background: rgba(255, 255, 255, 0.32); }
+  .ph-ctrl-btn.paused {
+    background: #16a34a;
+    border-color: #bbf7d0;
+    color: #fff;
+  }
+  .ph-count {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 18px;
+    font-weight: 700;
+    padding: 0 6px;
+    white-space: nowrap;
+  }
   .ph-clock {
     position: absolute;
     top: 22px;
