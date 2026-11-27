@@ -158,3 +158,11 @@ test('saveTodos, saveNotes, and markVideoWatched persist in PropertiesService', 
   assert.equal(st.todos.length, 1);
   assert.equal(st.notes.length, 1);
 });
+
+test('Code.js dispatchApi_ routes whitelisted actions and rejects unknown actions', () => {
+  installMockServices();
+  const code = require('../src/Code.js');
+  const st = code.dispatchApi_('apiGetState', []);
+  assert.ok(Array.isArray(st.meds));
+  assert.throws(() => code.dispatchApi_('unknownAction', []), /Unknown action/);
+});

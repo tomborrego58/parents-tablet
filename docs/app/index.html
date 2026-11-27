@@ -1,0 +1,3050 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#241773">
+  <link rel="manifest" href="manifest.json">
+  <title>Parents' Tablet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #app { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #241773;
+    color: #ffffff;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .loading {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  /* Shared Top & Bottom Bars */
+  .screen-meds, .screen-edit {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .top {
+    height: 54px;
+    flex: none;
+    contain: content;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: #fff;
+    color: #1b1b1b;
+    border-bottom: 2px solid #e2ddd2;
+    gap: 12px;
+  }
+  .top-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+  }
+  .top .clock { font-size: 36px; font-weight: 800; white-space: nowrap; }
+  .top .day { font-size: 26px; font-weight: 700; white-space: nowrap; }
+
+  .top-call-bar {
+    flex: none;
+    padding: 8px 20px;
+    background: #fff;
+    border-bottom: 2px solid #e2ddd2;
+  }
+  .top-call-bar .foot-row {
+    height: 54px;
+  }
+  body.dark .top-call-bar {
+    background: #121212;
+    border-color: #2c2c2c;
+  }
+  .main-tabs {
+    flex: none;
+    display: flex;
+    gap: 8px;
+    padding: 6px 16px;
+    background: #ebe6db;
+    border-bottom: 2px solid #d7d0c2;
+  }
+  .main-tab {
+    flex: 1;
+    border: 3px solid #2f5fb3;
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 12px;
+    padding: 10px 10px;
+    min-height: 66px;
+    font-family: inherit;
+    font-size: 23px;
+    font-weight: 800;
+    cursor: pointer;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .todo-done { text-decoration: line-through; opacity: 0.55; }
+  .todo-page {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 16px 10px;
+  }
+  .todo-bar {
+    flex: none;
+    display: flex;
+    gap: 8px;
+    background: #fff;
+    padding: 8px 10px;
+    border-radius: 14px;
+    margin-bottom: 8px;
+  }
+  body.dark .todo-bar { background: #121212; }
+  .todo-table-wrap {
+    flex: 1;
+    min-height: 0;
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 16px;
+    padding: 8px 14px;
+    overflow-y: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  body.dark .todo-table-wrap { background: #121212; color: #f5f5f5; }
+  .todo-table { width: 100%; border-collapse: collapse; font-size: 23px; }
+  .todo-table th {
+    text-align: left;
+    padding: 10px;
+    border-bottom: 3px solid #ddd;
+    color: #555;
+    font-size: 19px;
+    white-space: nowrap;
+  }
+  body.dark .todo-table th { color: #bbb; border-color: #333; }
+  .todo-table td {
+    padding: 10px;
+    border-bottom: 2px solid #eee;
+    vertical-align: middle;
+    font-weight: 700;
+  }
+  body.dark .todo-table td { border-color: #2c2c2c; }
+  .todo-row-done td {
+    background: #e5e3dc;
+    color: #555;
+  }
+  body.dark .todo-row-done td {
+    background: #252525;
+    color: #9e9e9e;
+  }
+  .todo-row-done .todo-desc { text-decoration: line-through; }
+  .del-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    padding: 2px 4px;
+  }
+  .del-x-box {
+    width: 34px;
+    height: 34px;
+    background: #c62828;
+    color: #fff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 900;
+  }
+  .del-lbl { font-size: 12px; font-weight: 800; color: #c62828; }
+  .who-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 20px;
+    font-weight: 800;
+    background: #dbeafe;
+    color: #1e40af;
+    border: 2px solid #93c5fd;
+  }
+  .who-tag.gene { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .who-tag.peggy { background: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
+  .who-tag.both { background: #dcfce7; color: #166534; border-color: #86efac; }
+  body.dark .who-tag.gene { background: #1e3a5f; color: #bfdbfe; border-color: #3b82f6; }
+  body.dark .who-tag.peggy { background: #3b1f4e; color: #e9d5ff; border-color: #a855f7; }
+  body.dark .who-tag.both { background: #14532d; color: #bbf7d0; border-color: #22c55e; }
+  .main-tab.on {
+    background: #2f5fb3;
+    color: #fff;
+    border-color: #2f5fb3;
+  }
+  body.dark .main-tabs { background: #1a1a1a; border-color: #2c2c2c; }
+  body.dark .main-tab { background: #121212; color: #f5f5f5; border-color: #555; }
+  body.dark .main-tab.on { background: #241773; border-color: #9e7c0c; color: #fff; }
+
+  .call-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    padding: 20px;
+  }
+  .call-card {
+    position: relative;
+    height: 210px;
+    border-radius: 20px;
+    font-size: 26px;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+  }
+  .call-tile-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .call-tile-init {
+    font-size: 64px;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 24px;
+  }
+  .call-tile-name {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 24px 10px 10px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+    color: #fff;
+    font-size: 24px;
+    font-weight: 800;
+    text-align: center;
+    z-index: 2;
+  }
+  .dial-readout {
+    font-size: 38px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    background: #f4f1ea;
+    color: #1b1b1b;
+    border: 3px solid #444;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    min-height: 68px;
+    text-align: center;
+  }
+  .dial-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .dial-key {
+    height: 70px;
+    border-radius: 14px;
+    border: 3px solid #444;
+    background: #fff;
+    color: #1b1b1b;
+    font-family: inherit;
+    font-size: 30px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .dial-key:active { background: #e8e3d8; }
+  body.dark .dial-readout { background: #1c1c1c; color: #fff; border-color: #666; }
+  body.dark .dial-key { background: #1c1c1c; color: #fff; border-color: #666; }
+  .call-person-card {
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 18px;
+    border: 3px solid #d7d0c2;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  body.dark .call-person-card {
+    background: #121212;
+    color: #f5f5f5;
+    border-color: #2c2c2c;
+  }
+  .call-person-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 24px;
+    font-weight: 800;
+  }
+  .call-person-head .avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    border-color: #999;
+    background: #2f5fb3;
+    color: #fff;
+  }
+  .call-person-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+  .call-big-btn {
+    flex: 1;
+    min-height: 54px;
+    border-radius: 14px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .mic-btn {
+    background: #c62828;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 0 22px;
+    font-family: inherit;
+    font-size: 24px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .mic-btn.listening { background: #1f8a3b; }
+  .video-banner {
+    flex: none;
+    background: #ffd34d;
+    border-bottom: 3px solid #d49b00;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 24px;
+    font-weight: 800;
+    color: #1b1b1b;
+  }
+
+  .foot {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 14px;
+    background: transparent;
+  }
+  .foot-row {
+    display: flex;
+    gap: 8px;
+    height: 54px;
+  }
+  .btn {
+    flex: 1;
+    border: none;
+    border-radius: 16px;
+    font-family: inherit;
+    font-size: 23px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #fff;
+    cursor: pointer;
+    padding: 0 10px;
+    min-width: 0;
+  }
+  .btn:active { opacity: 0.85; }
+  .call { background: #1f8a3b; }
+  .call-katie { background: #0f766e; }
+  .call-laura { background: #7c3aed; }
+  .call-matt { background: #b45309; }
+  .call-others { background: #374151; }
+  .photos { background: #2f5fb3; }
+  .edit { background: #5b5b5b; }
+  .red { background: #c62828; }
+  .amber { background: #e0b100; color: #1b1b1b; }
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    border: 2px solid rgba(255, 255, 255, 0.75);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 900;
+    flex: none;
+    overflow: hidden;
+  }
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Alarm Snooze Bar */
+  .alarm-bar {
+    flex: none;
+    background: #ffd34d;
+    color: #1b1b1b;
+    border-bottom: 3px solid #d49b00;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 26px;
+    font-weight: 800;
+  }
+  .alarm-bar .snooze-btn {
+    background: #1b1b1b;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 12px 22px;
+    font-family: inherit;
+    font-size: 24px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  /* Screen A: Meds Columns */
+  .cols {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 14px;
+    padding: 10px 14px 6px;
+  }
+  .col-wrap {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .col {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 20px;
+    padding: 8px 16px;
+    border: 3px solid transparent;
+  }
+  .scroll-hint {
+    margin: 4px auto 0;
+    background: rgba(27, 27, 27, 0.9);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    display: none;
+    flex: none;
+  }
+  .scroll-hint.show { display: inline-block; }
+  .gene { border-color: #2f5fb3; }
+  .peggy { border-color: #8a3fa8; }
+  .col-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+    gap: 10px;
+  }
+  .name { font-size: 36px; font-weight: 800; margin-bottom: 0; }
+  .gene .name { color: #2f5fb3; }
+  .peggy .name { color: #8a3fa8; }
+  .clear-btn {
+    border: 2px solid #bbb;
+    background: #f8f6f0;
+    color: #333;
+    border-radius: 10px;
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .clear-btn:active { background: #e8e3d8; }
+
+  .done-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 2px solid #eee;
+  }
+  .done-text {
+    font-size: 24px;
+    color: #1b1b1b;
+    font-weight: 800;
+  }
+  .expand-btn {
+    border: none;
+    background: transparent;
+    color: #2f5fb3;
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .done-list {
+    padding: 4px 0 8px 0;
+    border-bottom: 2px solid #eee;
+  }
+  .done-med {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .done-med:active { background: #f3efe6; }
+  .done-check {
+    color: #1f8a3b;
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1;
+    flex: none;
+  }
+  .settings-grid {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .settings-col {
+    flex: 1;
+    min-width: 280px;
+  }
+  .settings-divider {
+    border: none;
+    border-top: 3px solid #d7d0c2;
+    margin: 24px 0 14px;
+  }
+  body.dark .settings-divider { border-top-color: #2c2c2c; }
+  .meet-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .meet-row .name-in { width: 110px; flex: none; }
+  .meet-row .phone-in { width: 145px; flex: none; }
+  .meet-row .url-in { flex: 1; min-width: 160px; }
+  .meet-row .photo-in { width: 160px; flex: none; }
+
+  /* Dark Mode (Black background + Ravens accents) */
+  body.dark {
+    background: #000000;
+    color: #f5f5f5;
+  }
+  body.dark .top,
+  body.dark .foot,
+  body.dark .col,
+  body.dark .item,
+  body.dark .hist,
+  body.dark .dlg .c {
+    background: #121212;
+    color: #f5f5f5;
+    border-color: #2c2c2c;
+  }
+  body.dark .gene { border-color: #4f86f7; }
+  body.dark .peggy { border-color: #9e7c0c; }
+  body.dark .gene .name { color: #6ea3ff; }
+  body.dark .peggy .name { color: #d8a6ff; }
+  body.dark .tabs { background: #1a1a1a; border-color: #2c2c2c; }
+  body.dark .tab { background: #121212; color: #f5f5f5; border-color: #555; }
+  body.dark .tab.on { background: #241773; border-color: #9e7c0c; color: #fff; }
+  body.dark .field { background: #1c1c1c; color: #fff; border-color: #555; }
+  body.dark .done-text,
+  body.dark .mname,
+  body.dark .slot { color: #f5f5f5; }
+  body.dark .mdose,
+  body.dark .slot span,
+  body.dark .later,
+  body.dark .item .d,
+  body.dark .prn-title { color: #bdbdbd; }
+  body.dark .done-row,
+  body.dark .done-list,
+  body.dark .later { border-color: #2c2c2c; }
+  body.dark .med:active,
+  body.dark .done-med:active { background: #222; }
+  body.dark .box { background: #1c1c1c; border-color: #888; }
+  body.dark .box.on { background: #1f8a3b; border-color: #1f8a3b; }
+  body.dark .clear-btn { background: #1c1c1c; color: #f5f5f5; border-color: #555; }
+  body.dark .wait { background: #2d2300; border-color: #9e7c0c; color: #ffd34d; }
+  body.dark .warn { background: #3b1010; border-color: #ef5350; color: #ffcdd2; }
+  body.dark .pill { background: #1c1c1c; color: #8ab4f8; border-color: #4f86f7; }
+  body.dark .pill.on { background: #241773; color: #fff; border-color: #9e7c0c; }
+  .ravens-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #241773;
+    border: 2px solid #9e7c0c;
+    border-radius: 12px;
+    padding: 4px 10px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+  .wait {
+    margin: 10px 0;
+    background: #fff4d6;
+    border: 2px solid #e0b100;
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .slot-due-box {
+    background: #fff;
+    border: 3px solid #2f5fb3;
+    border-radius: 14px;
+    padding: 8px 12px;
+    margin: 8px 0;
+  }
+  .gene .slot-due-box { border-color: #2f5fb3; }
+  .peggy .slot-due-box { border-color: #8a3fa8; }
+  .slot-due-box .slot { margin-top: 2px; }
+  body.dark .slot-due-box {
+    background: transparent;
+  }
+  body.dark .gene .slot-due-box { border-color: #4f86f7; }
+  body.dark .peggy .slot-due-box { border-color: #a855f7; }
+  .slot {
+    font-size: 26px;
+    font-weight: 800;
+    margin: 14px 0 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .slot span { color: #666; font-weight: 700; }
+  .slot-note { font-size: 19px; color: #555; margin-bottom: 6px; font-weight: 600; }
+
+  .med {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 5px 6px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .med:active { background: #f3efe6; }
+  .box {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #444;
+    border-radius: 10px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: #fff;
+    font-weight: 900;
+    background: #fff;
+    margin-top: 2px;
+  }
+  .box.on { background: #1f8a3b; border-color: #1f8a3b; }
+  .med-body { flex: 1; min-width: 0; }
+  .med-line {
+    display: block;
+    line-height: 1.25;
+  }
+  .mname { font-size: 22px; font-weight: 700; display: inline; }
+  .mdose { font-size: 18px; color: #444; display: inline; }
+  .warn {
+    background: #fde8e8;
+    border: 2px solid #c62828;
+    color: #8e1515;
+    border-radius: 12px;
+    padding: 6px 10px;
+    font-size: 18px;
+    font-weight: 700;
+    margin-top: 6px;
+  }
+
+  .later {
+    font-size: 22px;
+    color: #555;
+    padding: 10px 0 4px;
+    border-top: 2px solid #eee;
+    margin-top: 10px;
+  }
+  .prn-wrap {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 2px dashed #ddd;
+  }
+  .prn-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #555;
+    margin-bottom: 4px;
+  }
+  .empty-msg {
+    font-size: 22px;
+    color: #fff;
+    padding: 16px 0;
+    line-height: 1.4;
+  }
+  .col .empty-msg { color: #666; }
+
+  /* Screen C: Photos full screen */
+  .screen-photos {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    background: linear-gradient(135deg, #d9a46a, #8d6e9e 55%, #4a7a9a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .ph-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #111;
+  }
+  .ph-label {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 34px;
+    font-weight: 700;
+    text-align: center;
+    padding: 0 32px;
+  }
+  .ph-clock {
+    position: absolute;
+    top: 22px;
+    left: 28px;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.75);
+    z-index: 2;
+  }
+  .ph-clock .time { font-size: 64px; font-weight: 800; line-height: 1.05; }
+  .ph-clock .date { font-size: 30px; font-weight: 700; margin-top: 4px; }
+  .sound-pill {
+    display: inline-block;
+    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #ffd34d;
+    border: 2px solid #ffd34d;
+    border-radius: 12px;
+    padding: 8px 16px;
+    font-size: 20px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .ph-actions {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    display: flex;
+    gap: 12px;
+    z-index: 2;
+  }
+  .ph-actions .btn {
+    flex: none;
+    padding: 16px 22px;
+    font-size: 24px;
+  }
+  .banner {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 24px;
+    height: 112px;
+    border-radius: 22px;
+    background: #ffd34d;
+    color: #1b1b1b;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    font-size: 32px;
+    font-weight: 800;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    z-index: 3;
+  }
+  .banner .go {
+    background: #1b1b1b;
+    color: #fff;
+    border-radius: 16px;
+    padding: 14px 26px;
+    font-size: 26px;
+    flex: none;
+  }
+
+  /* Screen E: Edit Meds / History / Settings */
+  .tabs {
+    display: flex;
+    gap: 10px;
+    padding: 12px 20px;
+    background: #ebe6db;
+    border-bottom: 2px solid #d7d0c2;
+    flex: none;
+    flex-wrap: wrap;
+  }
+  .tab {
+    border: 3px solid #444;
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 14px;
+    padding: 10px 20px;
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .tab.on { background: #1b1b1b; color: #fff; border-color: #1b1b1b; }
+  .edit-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    padding: 18px 24px 36px;
+    user-select: text;
+  }
+  .sec-title { font-size: 28px; font-weight: 800; margin: 16px 0 10px; }
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 16px;
+    border: 3px solid #ddd;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .item .n { font-size: 24px; font-weight: 800; flex: 1; min-width: 220px; }
+  .item .d { font-size: 19px; color: #444; font-weight: 600; }
+  .sm-btn {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 22px;
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    cursor: pointer;
+  }
+  .sm-btn.blue { background: #2f5fb3; }
+  .sm-btn.red { background: #c62828; }
+  .sm-btn.green { background: #1f8a3b; }
+  .sm-btn.amber { background: #e0b100; color: #1b1b1b; }
+
+  .who { display: flex; gap: 16px; margin-bottom: 14px; }
+  .who button {
+    flex: 1;
+    height: 74px;
+    border-radius: 18px;
+    font-family: inherit;
+    font-size: 34px;
+    font-weight: 900;
+    border: 4px solid;
+    background: #fff;
+    cursor: pointer;
+  }
+  .who .g { border-color: #2f5fb3; color: #2f5fb3; }
+  .who .g.on { background: #2f5fb3; color: #fff; }
+  .who .pg { border-color: #8a3fa8; color: #8a3fa8; }
+  .who .pg.on { background: #8a3fa8; color: #fff; }
+
+  .lbl { font-size: 22px; font-weight: 800; margin: 14px 0 6px; }
+  .field {
+    width: 100%;
+    background: #fff;
+    color: #1b1b1b;
+    border: 3px solid #444;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-family: inherit;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 220px; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    border: 3px solid #2f5fb3;
+    border-radius: 14px;
+    padding: 10px 18px;
+    margin: 0 10px 10px 0;
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: 800;
+    color: #2f5fb3;
+    background: #fff;
+    cursor: pointer;
+  }
+  .pill.on { background: #2f5fb3; color: #fff; }
+
+  .hist {
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 14px;
+    border: 2px solid #ddd;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    font-size: 22px;
+  }
+
+  /* Modal Dialog */
+  .dlg {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .dlg .c {
+    background: #fff;
+    color: #1b1b1b;
+    border-radius: 24px;
+    padding: 32px 36px;
+    max-width: 720px;
+    width: 100%;
+    text-align: center;
+  }
+  .dlg .q { font-size: 34px; font-weight: 800; margin-bottom: 10px; }
+  .dlg .s { font-size: 24px; color: #444; margin-bottom: 24px; }
+  .dlg .bb { display: flex; gap: 16px; }
+  .dlg .bb .btn { height: 80px; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 124px;
+    transform: translateX(-50%);
+    background: #1b1b1b;
+    color: #fff;
+    padding: 14px 24px;
+    border-radius: 14px;
+    font-size: 22px;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 99;
+  }
+  .toast.show { opacity: 0.95; }
+
+  @media (max-width: 900px) {
+    html, body { height: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .screen-meds, .screen-edit { height: auto; min-height: 100vh; overflow: visible; }
+    .top { padding: 8px 16px; height: auto; min-height: 64px; flex-wrap: wrap; }
+    .top .clock { font-size: 28px; }
+    .top .day { font-size: 20px; white-space: normal; }
+    .main-tabs { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+    .main-tab { flex: 1 1 18%; min-height: 66px; font-size: 19px; padding: 10px 8px; }
+    .cols { flex-direction: column; padding: 12px; gap: 14px; }
+    .col { overflow: visible; }
+    .med-line { flex-wrap: wrap; }
+    .mname { white-space: normal; }
+    .call-grid { grid-template-columns: repeat(2, 1fr); }
+    .foot { position: sticky; bottom: 0; height: auto; padding: 8px 12px; gap: 8px; }
+    .foot-row { height: auto; flex-wrap: wrap; gap: 8px; }
+    .foot-row .btn { min-width: 18%; height: 56px; font-size: 18px; border-radius: 14px; padding: 0 8px; }
+    .avatar { width: 28px; height: 28px; font-size: 15px; }
+    .ph-clock .time { font-size: 48px; }
+    .ph-clock .date { font-size: 22px; }
+    .ph-actions { top: auto; bottom: 20px; right: 12px; left: 12px; flex-wrap: wrap; }
+    .ph-actions .btn { flex: 1; padding: 12px; font-size: 18px; }
+    .banner { bottom: 96px; height: auto; padding: 14px 16px; font-size: 20px; gap: 10px; }
+    .banner .go { font-size: 18px; padding: 10px 14px; }
+  }
+
+  @media (max-width: 540px) {
+    .top .clock { font-size: 22px; }
+    .top .day { font-size: 16px; }
+    .main-tab { flex: 1 1 30%; min-height: 54px; font-size: 15px; padding: 8px 6px; }
+    .foot-row .btn { min-width: 30%; height: 48px; font-size: 15px; }
+    .avatar { width: 22px; height: 22px; font-size: 12px; }
+  }
+</style>
+
+</head>
+<body>
+  <div id="app">
+    <div class="loading">Loading Parents' Tablet…</div>
+  </div>
+  <div id="toast" class="toast" aria-live="polite"></div>
+<script>
+(function () {
+  var STORAGE_KEY = 'pt_api_url_v1';
+  var params = new URLSearchParams(window.location.search);
+  var paramApi = params.get('api');
+  if (paramApi && paramApi.indexOf('https://script.google.com/') === 0) {
+    localStorage.setItem(STORAGE_KEY, paramApi.trim());
+    try { window.history.replaceState({}, document.title, window.location.pathname); } catch (e) {}
+  }
+
+  var apiUrl = localStorage.getItem(STORAGE_KEY) || '';
+
+  if (!apiUrl) {
+    window.__PT_NEEDS_API_URL = true;
+    window.addEventListener('DOMContentLoaded', function () {
+      var app = document.getElementById('app');
+      if (!app) return;
+      app.innerHTML =
+        '<div style="max-width:680px;margin:60px auto;background:#fff;color:#1b1b1b;padding:28px;border-radius:20px">' +
+          '<h1 style="font-size:30px;margin-bottom:10px">Parents\' Tablet — Connect</h1>' +
+          '<p style="font-size:20px;color:#444;margin-bottom:16px">Paste your Google Apps Script Web App URL once to link this device:</p>' +
+          '<input id="pt-api-in" class="field" placeholder="https://script.google.com/macros/s/.../exec">' +
+          '<button id="pt-api-save" class="btn call" style="width:100%;height:68px;margin-top:16px">Connect</button>' +
+        '</div>';
+      document.getElementById('pt-api-save').addEventListener('click', function () {
+        var val = (document.getElementById('pt-api-in').value || '').trim();
+        if (val.indexOf('https://script.google.com/') !== 0) {
+          alert('Please paste the full https://script.google.com/macros/s/.../exec URL.');
+          return;
+        }
+        localStorage.setItem(STORAGE_KEY, val);
+        window.location.reload();
+      });
+    });
+    return;
+  }
+
+  var METHODS = [
+    'apiGetState', 'apiToggleDose', 'apiClearPersonLogs', 'apiSaveMed',
+    'apiDeleteMed', 'apiSaveSlot', 'apiUndoHistory', 'apiSaveConfig',
+    'apiGetPhotos', 'apiNotifyCall', 'apiSaveTodos', 'apiSaveNotes',
+    'apiGetVideos', 'apiMarkVideoWatched', 'apiGetAvatars'
+  ];
+
+  function createRunner(onOk, onErr) {
+    var runner = {
+      withSuccessHandler: function (fn) { return createRunner(fn, onErr); },
+      withFailureHandler: function (fn) { return createRunner(onOk, fn); }
+    };
+    METHODS.forEach(function (method) {
+      runner[method] = function () {
+        var args = Array.prototype.slice.call(arguments);
+        fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: method, args: args }),
+          redirect: 'follow'
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (json) {
+            if (json && json.ok) {
+              if (onOk) onOk(json.data);
+            } else {
+              var err = new Error((json && json.error) || 'API error');
+              if (onErr) onErr(err);
+            }
+          })
+          .catch(function (err) {
+            if (onErr) onErr(err);
+          });
+      };
+    });
+    return runner;
+  }
+
+  window.google = {
+    script: {
+      run: createRunner(null, null)
+    }
+  };
+})();
+</script>
+<script>
+(function () {
+  if (window.__PT_NEEDS_API_URL) return;
+  var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  var state = {
+    slots: [],
+    meds: [],
+    todayLogs: {},
+    todayKey: '',
+    config: {},
+    history: [],
+    todos: [],
+    notes: [],
+    photos: [],
+    videos: [],
+    avatarMap: {},
+    activeVideo: null,
+    todoWho: 'Both',
+    todoFrom: 'Gene',
+    todoDate: '',
+    todoTime: '',
+    todoPopupOpen: false,
+    todoDraft: '',
+    isListening: false,
+    photoIdx: 0,
+    view: 'photos',        // 'photos' | 'meds' | 'edit'
+    editTab: 'list',       // 'list' | 'form' | 'history' | 'settings'
+    editMed: null,
+    deleteTarget: null,
+    manualView: null,
+    dismissedDueKey: '',
+    audioUnlocked: false,
+    lastChimedDueKey: '',
+    snoozedUntilMs: 0,
+    expandedSlots: {},
+    showCallOthers: false,
+    newCallMode: 'phone',
+    dialNumber: '',
+    dialEmail: ''
+  };
+
+  var toastTimer = null;
+  var audioCtx = null;
+  var wakeLockObj = null;
+  var lastStateSig = '';
+
+  function requestWakeLock() {
+    try {
+      if (navigator.wakeLock && !wakeLockObj) {
+        navigator.wakeLock.request('screen').then(function (wl) {
+          wakeLockObj = wl;
+          wl.addEventListener('release', function () { wakeLockObj = null; });
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') requestWakeLock();
+  });
+
+  function showToast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      el.classList.remove('show');
+    }, 2800);
+  }
+
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatClock(date) {
+    var h = date.getHours();
+    var m = String(date.getMinutes()).padStart(2, '0');
+    var ampm = h >= 12 ? 'pm' : 'am';
+    var h12 = h % 12 || 12;
+    return h12 + ':' + m + ' ' + ampm;
+  }
+
+  function formatHHMM12(hhmm) {
+    if (!hhmm || hhmm.indexOf(':') === -1) return hhmm || '';
+    var p = hhmm.split(':');
+    var h = parseInt(p[0], 10);
+    var ampm = h >= 12 ? 'pm' : 'am';
+    return (h % 12 || 12) + ':' + p[1] + ' ' + ampm;
+  }
+
+  function formatDateLine(date) {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  }
+
+  function parseTodayTime(now, hhmm) {
+    var p = (hhmm || '00:00').split(':');
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+      parseInt(p[0], 10) || 0, parseInt(p[1], 10) || 0, 0, 0).getTime();
+  }
+
+  function isInQuietHours(now) {
+    var cfg = state.config || {};
+    var qs = (cfg.quietStart || '21:00').split(':');
+    var qe = (cfg.quietEnd || '08:00').split(':');
+    var cur = now.getHours() * 60 + now.getMinutes();
+    var sMin = (parseInt(qs[0], 10) || 21) * 60 + (parseInt(qs[1], 10) || 0);
+    var eMin = (parseInt(qe[0], 10) || 8) * 60 + (parseInt(qe[1], 10) || 0);
+    if (sMin === eMin) return false;
+    return sMin > eMin ? (cur >= sMin || cur < eMin) : (cur >= sMin && cur < eMin);
+  }
+
+  function unlockAudio() {
+    requestWakeLock();
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx && !audioCtx) audioCtx = new Ctx();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      state.audioUnlocked = true;
+    } catch (e) {}
+  }
+
+  function playChimeOnce(type) {
+    if (type === 'voice' && window.speechSynthesis) {
+      var u = new SpeechSynthesisUtterance('Time for medications.');
+      window.speechSynthesis.speak(u);
+      return;
+    }
+    try {
+      unlockAudio();
+      if (!audioCtx) return;
+      var notes = type === 'bell' ? [660, 880, 660] : [523.25, 659.25];
+      var nowT = audioCtx.currentTime;
+      notes.forEach(function (freq, idx) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = type === 'bell' ? 'triangle' : 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.001, nowT + idx * 0.28);
+        gain.gain.exponentialRampToValueAtTime(0.28, nowT + idx * 0.28 + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, nowT + idx * 0.28 + 0.55);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(nowT + idx * 0.28);
+        osc.stop(nowT + idx * 0.28 + 0.6);
+      });
+    } catch (e) {}
+  }
+
+  function maybePlayAlarm(dueKey, now) {
+    if (!dueKey) {
+      state.lastChimedDueKey = '';
+      return;
+    }
+    if (now.getTime() < state.snoozedUntilMs) return;
+    if (isInQuietHours(now)) return;
+    if (state.lastChimedDueKey === dueKey) return;
+
+    state.lastChimedDueKey = dueKey;
+    var cfg = state.config || {};
+    var type = cfg.soundType || 'chime';
+    if (type === 'none') return;
+    var repeat = cfg.soundRepeat !== undefined ? parseInt(cfg.soundRepeat, 10) : 1;
+    playChimeOnce(type);
+    for (var i = 1; i <= repeat; i++) {
+      setTimeout(function () { playChimeOnce(type); }, i * 4500);
+    }
+  }
+
+  function isMedScheduledToday(med, now) {
+    if (!med || !med.freq || med.freq === 'prn') return false;
+    if (med.freq === 'daily') return true;
+    if (med.freq === 'weekly' || med.freq === 'days') {
+      return Array.isArray(med.days) && med.days.indexOf(now.getDay()) !== -1;
+    }
+    return false;
+  }
+
+  function computePersonView(person, now) {
+    var nowMs = now.getTime();
+    var personSlots = state.slots
+      .filter(function (s) { return s.person === person; })
+      .sort(function (a, b) { return a.time.localeCompare(b.time); });
+    var prnMeds = state.meds.filter(function (m) {
+      return m.person === person && m.freq === 'prn';
+    });
+
+    var activeWaitUntil = 0;
+    var activeWaitMinutes = 0;
+    var doneSlots = [];
+    var dueSlots = [];
+    var laterSlots = [];
+
+    personSlots.forEach(function (slot) {
+      var slotMeds = state.meds.filter(function (m) {
+        return m.person === person && m.slotId === slot.id && isMedScheduledToday(m, now);
+      });
+      if (!slotMeds.length) return;
+
+      var allTicked = slotMeds.every(function (m) { return !!state.todayLogs[m.id]; });
+      var maxTakenTs = 0;
+      var lastTakenAt = '';
+      slotMeds.forEach(function (m) {
+        var log = state.todayLogs[m.id];
+        if (log && log.ts >= maxTakenTs) {
+          maxTakenTs = log.ts;
+          lastTakenAt = log.takenAt;
+        }
+      });
+
+      if (allTicked) {
+        doneSlots.push({ slot: slot, takenAt: lastTakenAt, meds: slotMeds });
+        if (slot.waitMinutes && maxTakenTs > 0) {
+          var wu = maxTakenTs + slot.waitMinutes * 60000;
+          if (nowMs < wu && wu > activeWaitUntil) {
+            activeWaitUntil = wu;
+            activeWaitMinutes = slot.waitMinutes;
+          }
+        }
+        return;
+      }
+
+      var baseMs = parseTodayTime(now, slot.time);
+      var entry = {
+        slot: slot,
+        meds: slotMeds,
+        effectiveMs: baseMs,
+        effectiveTimeStr: formatClock(new Date(baseMs)),
+        isDue: nowMs >= baseMs
+      };
+      if (entry.isDue) dueSlots.push(entry);
+      else laterSlots.push(entry);
+    });
+
+    var visibleSlots = dueSlots.slice();
+    var remainingLater = laterSlots.slice();
+    if (!visibleSlots.length && remainingLater.length) {
+      visibleSlots.push(remainingLater.shift());
+    }
+
+    return {
+      doneSlots: doneSlots,
+      activeWaitUntil: activeWaitUntil,
+      activeWaitMinutes: activeWaitMinutes,
+      dueSlots: dueSlots,
+      visibleSlots: visibleSlots,
+      laterSlots: remainingLater,
+      prnMeds: prnMeds
+    };
+  }
+
+  function updateAutoView(geneView, peggyView) {
+    var dueIds = [];
+    geneView.dueSlots.forEach(function (d) { dueIds.push('g:' + d.slot.id); });
+    peggyView.dueSlots.forEach(function (d) { dueIds.push('p:' + d.slot.id); });
+    var dueKey = dueIds.join(',');
+
+    if (state.view === 'edit' || state.view === 'todo' || state.view === 'call' || state.view === 'settings') {
+      return dueKey;
+    }
+
+    if (dueKey) {
+      if (state.manualView === 'photos' && state.dismissedDueKey === dueKey) {
+        state.view = 'photos';
+      } else {
+        state.manualView = null;
+        state.dismissedDueKey = '';
+        state.view = 'meds';
+      }
+    } else {
+      state.dismissedDueKey = '';
+      state.view = state.manualView === 'meds' ? 'meds' : 'photos';
+    }
+    return dueKey;
+  }
+
+  function formatMedQtyFirst(med) {
+    var dose = String(med.dose || '').trim();
+    var strength = String(med.strength || '').trim();
+    var name = String(med.name || '').trim();
+    var m = dose.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+    if (!m) {
+      return name + (strength ? ', ' + strength : '') + (dose ? ', ' + dose : '');
+    }
+    var qty = m[1];
+    var rest = m[2].trim();
+    var totalMatch = rest.match(/^(.*?)=\s*(.+)$/);
+    var unit = totalMatch ? totalMatch[1].trim() : rest;
+    var total = totalMatch ? totalMatch[2].trim() : '';
+
+    // Normalize plural unit to singular when strength is present (e.g. "tablets" -> "tablet")
+    var unitSingular = unit.replace(/s$/i, '');
+    if (unitSingular.toLowerCase().indexOf('spray') === 0) {
+      unit = unit.replace(/^sprays?\s*/i, '').trim();
+    } else if (strength) {
+      unit = unitSingular;
+    }
+
+    var out = qty + 'x ' + name;
+    var tail = [];
+    if (strength && unit) tail.push(strength + ' ' + unit);
+    else if (strength) tail.push(strength);
+    else if (unit) tail.push(unit);
+    if (tail.length) out += ', ' + tail.join(' ');
+    if (total) out += ' (' + total + ' total)';
+    return out;
+  }
+
+  function renderMedRow(med, isPrn) {
+    var log = state.todayLogs[med.id];
+    var useQtyFirst = !state.config || state.config.medFormat !== 'classic';
+    var details = [];
+    if (!useQtyFirst && med.dose) details.push(med.dose);
+    if (med.note) details.push(med.note);
+    if (log && log.takenAt) details.push((isPrn ? 'last used ' : 'taken ') + formatHHMM12(log.takenAt));
+    var title = useQtyFirst
+      ? formatMedQtyFirst(med)
+      : (med.name + (med.strength ? ' ' + med.strength : ''));
+    var warnHtml = med.warning ? '<div class="warn">⚠ ' + esc(med.warning) + '</div>' : '';
+
+    return (
+      '<div class="med" data-med-id="' + esc(med.id) + '">' +
+        '<div class="box' + (log ? ' on' : '') + '">' + (log ? '✓' : '') + '</div>' +
+        '<div class="med-body">' +
+          '<div class="med-line">' +
+            '<span class="mname">' + esc(title) + '</span>' +
+            (details.length ? ' <span class="mdose">· ' + esc(details.join(' · ')) + '</span>' : '') +
+          '</div>' +
+          warnHtml +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderColumn(person, label, pView) {
+    var html = '<div class="col-wrap"><div class="col ' + person + '">' +
+      '<div class="col-head">' +
+        '<div class="name">' + label + '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button type="button" class="clear-btn" data-edit-person="' + person + '">Edit</button>' +
+          '<button type="button" class="clear-btn" data-clear-person="' + person + '">Clear</button>' +
+        '</div>' +
+      '</div>';
+    if (!pView.doneSlots.length && !pView.visibleSlots.length && !pView.laterSlots.length && !pView.prnMeds.length) {
+      return html + '<div class="empty-msg">No medications scheduled yet. Tap Edit above to add.</div></div></div>';
+    }
+    pView.doneSlots.forEach(function (d) {
+      var expKey = person + ':' + d.slot.id;
+      var isExp = !!state.expandedSlots[expKey];
+      html +=
+        '<div class="done-row">' +
+          '<div class="done-text"><span class="done-check">✓</span> ' + esc(d.slot.name) + ' - <span style="color:#1f8a3b">Completed</span> at ' + esc(formatHHMM12(d.takenAt)) + '</div>' +
+          '<button type="button" class="expand-btn" data-toggle-expand="' + esc(expKey) + '">' + (isExp ? '- Collapse' : '+ Expand') + '</button>' +
+        '</div>';
+      if (isExp && d.meds && d.meds.length) {
+        html += '<div class="done-list">';
+        d.meds.forEach(function (m) {
+          var title = m.name + (m.strength ? ' ' + m.strength : '');
+          html +=
+            '<div class="done-med" data-med-id="' + esc(m.id) + '">' +
+              '<span class="done-check">✓</span>' +
+              '<span class="mname">' + esc(title) + '</span>' +
+            '</div>';
+        });
+        html += '</div>';
+      }
+    });
+    if (pView.activeWaitUntil > 0) {
+      var hrs = Math.round(pView.activeWaitMinutes / 60 * 10) / 10;
+      var wl = hrs === 2 ? '2-hour wait' : (pView.activeWaitMinutes + '-min wait');
+      html += '<div class="wait">⏳ Next meds at <b>' + esc(formatClock(new Date(pView.activeWaitUntil))) + '</b> (' + esc(wl) + ')</div>';
+    }
+    pView.visibleSlots.forEach(function (entry) {
+      if (entry.isDue) html += '<div class="slot-due-box">';
+      html += '<div class="slot">' + esc(entry.slot.name) + ' <span>' + esc(entry.effectiveTimeStr) + '</span></div>';
+      if (entry.slot.note) html += '<div class="slot-note">' + esc(entry.slot.note) + '</div>';
+      entry.meds.forEach(function (m) { html += renderMedRow(m, false); });
+      if (entry.isDue) html += '</div>';
+    });
+    if (pView.laterSlots.length) {
+      var parts = pView.laterSlots.map(function (l) {
+        return esc(l.slot.name) + ' ' + esc(l.effectiveTimeStr) + ' (' + l.meds.length + ')';
+      });
+      html += '<div class="later">Later: ' + parts.join(' · ') + '</div>';
+    }
+    if (pView.prnMeds.length) {
+      html += '<div class="prn-wrap"><div class="prn-title">As Needed</div>';
+      pView.prnMeds.forEach(function (m) { html += renderMedRow(m, true); });
+      html += '</div>';
+    }
+    html += '</div><button type="button" class="scroll-hint" data-scroll-col="' + person + '">↓ Scroll for more</button></div>';
+    return html;
+  }
+
+  function renderEditScreen() {
+    var tab = state.editTab;
+    var tabsHtml =
+      '<div class="tabs">' +
+        '<button class="tab' + (tab === 'list' ? ' on' : '') + '" data-tab="list">Med List &amp; Times</button>' +
+        '<button class="tab' + (tab === 'form' ? ' on' : '') + '" data-tab="form">' + (state.editMed && state.editMed.id ? 'Edit Med' : '+ Add Med') + '</button>' +
+        '<button class="tab' + (tab === 'history' ? ' on' : '') + '" data-tab="history">History</button>' +
+        '<button class="tab' + (tab === 'settings' ? ' on' : '') + '" data-tab="settings">Settings</button>' +
+      '</div>';
+
+    var body = '';
+    if (tab === 'list') body = renderEditListTab();
+    else if (tab === 'form') body = renderEditFormTab();
+    else if (tab === 'history') body = renderHistoryTab();
+    else if (tab === 'settings') body = renderSettingsTab();
+
+    var dlgHtml = '';
+    if (state.deleteTarget) {
+      dlgHtml =
+        '<div class="dlg"><div class="c">' +
+          '<div class="q">Delete ' + esc(state.deleteTarget.name) + '?</div>' +
+          '<div class="s">Are you sure? Tom will get an email, and you can undo from History.</div>' +
+          '<div class="bb">' +
+            '<button class="btn edit" id="dlg-cancel">Cancel</button>' +
+            '<button class="btn red" id="dlg-confirm">Yes, Delete</button>' +
+          '</div>' +
+        '</div></div>';
+    }
+
+    return (
+      '<div class="screen-edit">' +
+        '<div class="top"><div class="day">Edit Medications</div>' +
+          '<div style="display:flex;gap:10px">' +
+            '<button class="sm-btn green" id="btn-save-exit">Save and Exit</button>' +
+            '<button class="sm-btn" style="background:#5b5b5b" id="btn-exit">Exit</button>' +
+          '</div>' +
+        '</div>' +
+        tabsHtml +
+        '<div class="edit-body">' + body + '</div>' +
+        dlgHtml +
+      '</div>'
+    );
+  }
+
+  function renderEditListTab() {
+    var html = '<div class="sec-title">Alarm Times</div>';
+    ['gene', 'peggy'].forEach(function (person) {
+      var label = person === 'gene' ? 'Gene' : 'Peggy';
+      var pSlots = state.slots.filter(function (s) { return s.person === person; })
+        .sort(function (a, b) { return a.time.localeCompare(b.time); });
+      pSlots.forEach(function (s) {
+        html +=
+          '<div class="item">' +
+            '<div class="n">' + label + ' — ' + esc(s.name) + '</div>' +
+            '<input type="time" class="field" style="width:180px" id="slot-time-' + esc(s.id) + '" value="' + esc(s.time) + '">' +
+            '<button class="sm-btn green" data-save-slot="' + esc(s.id) + '">Save Time</button>' +
+          '</div>';
+      });
+    });
+
+    ['gene', 'peggy'].forEach(function (person) {
+      var label = person === 'gene' ? "Gene's Medications" : "Peggy's Medications";
+      html += '<div class="sec-title">' + label + '</div>';
+      var pMeds = state.meds.filter(function (m) { return m.person === person; });
+      if (!pMeds.length) html += '<div class="empty-msg">No medications yet.</div>';
+      pMeds.forEach(function (m) {
+        var slot = state.slots.find(function (s) { return s.id === m.slotId; });
+        var sub = [m.strength, m.dose, m.freq === 'prn' ? 'As Needed' : (slot ? slot.name : ''), m.note].filter(Boolean).join(' · ');
+        html +=
+          '<div class="item">' +
+            '<div class="n">' + esc(m.name) + '<div class="d">' + esc(sub) + '</div></div>' +
+            '<button class="sm-btn blue" data-edit-med="' + esc(m.id) + '">Edit</button>' +
+            '<button class="sm-btn red" data-del-med="' + esc(m.id) + '">Delete</button>' +
+          '</div>';
+      });
+    });
+    return html;
+  }
+
+  function renderEditFormTab() {
+    var m = state.editMed || { person: 'gene', slotId: '', name: '', strength: '', dose: '', note: '', warning: '', freq: 'daily', days: [] };
+    var pSlots = state.slots.filter(function (s) { return s.person === m.person; })
+      .sort(function (a, b) { return a.time.localeCompare(b.time); });
+    if (!m.slotId && pSlots.length && m.freq !== 'prn') m.slotId = pSlots[0].id;
+
+    var slotsHtml = pSlots.map(function (s) {
+      return '<button type="button" class="pill' + (m.slotId === s.id ? ' on' : '') + '" data-form-slot="' + esc(s.id) + '">' +
+        esc(s.name) + ' (' + esc(formatHHMM12(s.time)) + ')</button>';
+    }).join('');
+
+    var freqs = [
+      { k: 'daily', l: 'Every day' },
+      { k: 'weekly', l: 'Once a week' },
+      { k: 'days', l: 'Specific days' },
+      { k: 'prn', l: 'As Needed' }
+    ];
+    var freqHtml = freqs.map(function (f) {
+      return '<button type="button" class="pill' + (m.freq === f.k ? ' on' : '') + '" data-form-freq="' + f.k + '">' + f.l + '</button>';
+    }).join('');
+
+    var daysHtml = '';
+    if (m.freq === 'weekly' || m.freq === 'days') {
+      daysHtml = '<div class="lbl">Which day(s)?</div><div>' +
+        DAY_NAMES.map(function (dn, idx) {
+          var on = Array.isArray(m.days) && m.days.indexOf(idx) !== -1;
+          return '<button type="button" class="pill' + (on ? ' on' : '') + '" data-form-day="' + idx + '">' + dn + '</button>';
+        }).join('') + '</div>';
+    }
+
+    return (
+      '<div class="who">' +
+        '<button type="button" class="g' + (m.person === 'gene' ? ' on' : '') + '" data-form-person="gene">Gene</button>' +
+        '<button type="button" class="pg' + (m.person === 'peggy' ? ' on' : '') + '" data-form-person="peggy">Peggy</button>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">Medication Name</div><input class="field" id="f-name" value="' + esc(m.name) + '" placeholder="e.g. Lisinopril"></div>' +
+        '<div><div class="lbl">Strength</div><input class="field" id="f-strength" value="' + esc(m.strength) + '" placeholder="e.g. 20 mg"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div><div class="lbl">How much to take</div><input class="field" id="f-dose" value="' + esc(m.dose) + '" placeholder="e.g. 1 tablet"></div>' +
+        '<div><div class="lbl">Note (optional)</div><input class="field" id="f-note" value="' + esc(m.note) + '" placeholder="e.g. after food"></div>' +
+      '</div>' +
+      '<div class="lbl">Red Warning Note (optional)</div>' +
+      '<input class="field" id="f-warning" value="' + esc(m.warning) + '" placeholder="e.g. Check HR before taking">' +
+      '<div class="lbl">Schedule</div><div>' + freqHtml + '</div>' +
+      daysHtml +
+      (m.freq !== 'prn' ? '<div class="lbl">Time Slot</div><div>' + slotsHtml + '</div>' : '') +
+      '<div style="margin-top:20px;display:flex;gap:14px">' +
+        '<button class="btn call" style="height:76px" id="btn-save-med">Save Medication</button>' +
+      '</div>'
+    );
+  }
+
+  function renderHistoryTab() {
+    if (!state.history || !state.history.length) {
+      return '<div class="empty-msg">No changes recorded yet.</div>';
+    }
+    return state.history.map(function (h) {
+      return (
+        '<div class="hist">' +
+          '<div><b>' + esc(h.summary) + '</b><div class="d">' + esc(h.dateKey) + ' at ' + esc(formatHHMM12(h.timeStr)) + '</div></div>' +
+          (h.undone
+            ? '<span style="color:#666;font-weight:700">Undone</span>'
+            : '<button class="sm-btn amber" data-undo="' + esc(h.id) + '">Undo</button>') +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function getMeetContactsFromConfig(c) {
+    if (Array.isArray(c.meetContacts) && c.meetContacts.length) {
+      return c.meetContacts;
+    }
+    return [
+      { name: 'Tom', url: c.meetUrlTom || '' },
+      { name: 'Katie', url: c.meetUrlKatie || '' },
+      { name: 'Matt', url: c.meetUrlMatt || '' },
+      { name: 'Laura', url: c.meetUrlLaura || '' }
+    ];
+  }
+
+  function renderSettingsTab() {
+    var c = state.config || {};
+    var sumTime = c.dailySummaryTime || ((c.dailySummaryHour !== undefined ? String(c.dailySummaryHour).padStart(2, '0') : '21') + ':00');
+    var contacts = getMeetContactsFromConfig(c);
+    var meetRowsHtml = contacts.map(function (mc, idx) {
+      return (
+        '<div class="meet-row" data-meet-idx="' + idx + '">' +
+          '<input class="field name-in" data-meet-name="' + idx + '" value="' + esc(mc.name) + '" placeholder="Name">' +
+          '<input class="field phone-in" data-meet-phone="' + idx + '" value="' + esc(mc.phone || '') + '" placeholder="Phone (tel)">' +
+          '<input class="field url-in" data-meet-url="' + idx + '" value="' + esc(mc.url) + '" placeholder="Meet URL (optional)">' +
+          '<input class="field photo-in" data-meet-photo="' + idx + '" value="' + esc(mc.photoUrl || '') + '" placeholder="Photo URL (optional)">' +
+          (idx >= 4 ? '<button type="button" class="sm-btn red" data-del-meet="' + idx + '">✕</button>' : '') +
+        '</div>'
+      );
+    }).join('');
+
+    return (
+      '<div class="settings-grid">' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Tom Email</div><input class="field" id="s-alertEmail" value="' + esc(c.alertEmail) + '">' +
+          '<div class="lbl">Katie Email</div><input class="field" id="s-katieEmail" value="' + esc(c.katieEmail) + '">' +
+          '<div class="lbl">Quiet Hours Start</div><input type="time" class="field" id="s-quietStart" value="' + esc(c.quietStart || '21:00') + '">' +
+          '<div class="lbl">Quiet Hours End</div><input type="time" class="field" id="s-quietEnd" value="' + esc(c.quietEnd || '08:00') + '">' +
+          '<div class="lbl">Daily Summary Email Time</div><input type="time" class="field" id="s-dailySummaryTime" value="' + esc(sumTime) + '">' +
+          '<div class="lbl">Missed-Dose Email Delay (minutes)</div><input type="number" class="field" id="s-missedDelayMin" value="' + esc(c.missedDelayMin || 120) + '">' +
+        '</div>' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Theme</div><select class="field" id="s-theme">' +
+            '<option value="light"' + (c.theme !== 'dark' ? ' selected' : '') + '>Light (Ravens Purple)</option>' +
+            '<option value="dark"' + (c.theme === 'dark' ? ' selected' : '') + '>Dark (Black)</option>' +
+          '</select>' +
+          '<div class="lbl">Med Display</div><select class="field" id="s-medFormat">' +
+            '<option value="qty_first"' + (c.medFormat !== 'classic' ? ' selected' : '') + '>Quantity First (4x Med, 250 mg)</option>' +
+            '<option value="classic"' + (c.medFormat === 'classic' ? ' selected' : '') + '>Classic (Name + Dose below)</option>' +
+          '</select>' +
+          '<div class="lbl">Alarm Sound</div><select class="field" id="s-soundType">' +
+            '<option value="none"' + (c.soundType === 'none' ? ' selected' : '') + '>None</option>' +
+            '<option value="chime"' + (c.soundType === 'chime' ? ' selected' : '') + '>Gentle Chime</option>' +
+            '<option value="bell"' + (c.soundType === 'bell' ? ' selected' : '') + '>Louder Bell</option>' +
+            '<option value="voice"' + (c.soundType === 'voice' ? ' selected' : '') + '>Spoken Message</option>' +
+          '</select>' +
+          '<div class="lbl">Alarm Banner</div><select class="field" id="s-alarmBanner">' +
+            '<option value="yes"' + (c.alarmBanner !== 'no' ? ' selected' : '') + '>Yes</option>' +
+            '<option value="no"' + (c.alarmBanner === 'no' ? ' selected' : '') + '>No</option>' +
+          '</select>' +
+          '<div class="lbl">Snooze Minutes</div><input type="number" class="field" id="s-snoozeMin" value="' + esc(c.snoozeMin || 10) + '">' +
+        '</div>' +
+      '</div>' +
+      '<hr class="settings-divider">' +
+      '<div class="settings-grid">' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Google Meet URLs</div>' +
+          meetRowsHtml +
+          '<div style="margin-top:8px"><button type="button" class="sm-btn blue" id="btn-add-meet">+ Add New Person</button></div>' +
+        '</div>' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Drive Photo Folder URL / ID</div><input class="field" id="s-driveFolderId" value="' + esc(c.driveFolderId) + '">' +
+          '<div class="lbl">Optional Text Gateway Email</div><input class="field" id="s-smsGatewayEmail" value="' + esc(c.smsGatewayEmail) + '">' +
+        '</div>' +
+      '</div>' +
+      '<hr class="settings-divider">' +
+      '<div class="settings-grid">' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Doctor Name</div><input class="field" id="s-doctorName" value="' + esc(c.doctorName || 'Doctor') + '">' +
+          '<div class="lbl">Doctor Phone Number</div><input class="field" id="s-doctorPhone" value="' + esc(c.doctorPhone) + '" placeholder="e.g. 302-555-1234">' +
+        '</div>' +
+        '<div class="settings-col">' +
+          '<div class="lbl">Video Messages Drive Folder URL / ID</div><input class="field" id="s-videoFolderId" value="' + esc(c.videoFolderId) + '">' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function normalizeAvatarUrl(raw) {
+    if (!raw) return '';
+    var s = String(raw).trim();
+    var m = s.match(/\/d\/([a-zA-Z0-9_-]+)/) || s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (m && s.indexOf('drive.google.com') !== -1) {
+      return 'https://lh3.googleusercontent.com/d/' + m[1] + '=s200';
+    }
+    return s;
+  }
+
+  function avatarHtml(name, photoUrl) {
+    var mapped = photoUrl && state.avatarMap ? state.avatarMap[String(photoUrl).trim()] : '';
+    var u = mapped || normalizeAvatarUrl(photoUrl);
+    if (u) {
+      return '<span class="avatar"><img src="' + esc(u) + '" alt=""></span>';
+    }
+    var ch = (name || '?').charAt(0).toUpperCase();
+    return '<span class="avatar">' + esc(ch) + '</span>';
+  }
+
+  function getContactByName(name) {
+    var contacts = getMeetContactsFromConfig(state.config || {});
+    return contacts.find(function (c) { return c.name && c.name.toLowerCase() === name.toLowerCase(); }) || {};
+  }
+
+  function renderCallOthersModal() {
+    if (!state.showCallOthers) return '';
+    var contacts = getMeetContactsFromConfig(state.config || {});
+    var baseNames = { tom: 1, katie: 1, laura: 1, matt: 1 };
+    var extras = contacts.filter(function (c) {
+      return c.name && !baseNames[c.name.toLowerCase()];
+    });
+    var listHtml = extras.length
+      ? extras.map(function (c, i) {
+          return '<button type="button" class="btn call" style="height:68px;margin-bottom:10px;width:100%" data-call-extra="' + esc(c.name) + '" data-call-url="' + esc(c.url || '') + '">' +
+            avatarHtml(c.name, c.photoUrl) + ' Call ' + esc(c.name) +
+          '</button>';
+        }).join('')
+      : '<div class="s">No extra people added yet. Add them in Settings → Google Meet URLs.</div>';
+
+    return (
+      '<div class="dlg"><div class="c">' +
+        '<div class="q">Call Others</div>' +
+        '<div style="margin:14px 0 20px">' + listHtml + '</div>' +
+        '<button type="button" class="btn edit" style="height:66px;width:100%" id="btn-close-others">Close</button>' +
+      '</div></div>'
+    );
+  }
+
+  function renderTopBar(now) {
+    return (
+      '<div class="top">' +
+        '<div class="top-left">' +
+          '<div class="clock">' + esc(formatClock(now)) + '</div>' +
+          '<div class="day">' + esc(formatDateLine(now)) + '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderCallBar() {
+    var btnFor = function (name, cls, id) {
+      var c = getContactByName(name);
+      if (c && c.phone) {
+        return '<a class="btn ' + cls + '" style="text-decoration:none" target="_top" href="tel:' + esc(c.phone) + '">' + avatarHtml(name, c.photoUrl) + ' Call ' + esc(name) + '</a>';
+      }
+      return '<button class="btn ' + cls + '" id="' + id + '">' + avatarHtml(name, c.photoUrl) + ' Call ' + esc(name) + '</button>';
+    };
+    return (
+      '<div class="foot">' +
+        '<div class="foot-row">' +
+          btnFor('Tom', 'call', 'btn-call-tom') +
+          btnFor('Katie', 'call-katie', 'btn-call-katie') +
+          btnFor('Laura', 'call-laura', 'btn-call-laura') +
+          btnFor('Matt', 'call-matt', 'btn-call-matt') +
+          '<button class="btn call-others" id="btn-call-others">📞 Call Others</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderMainTabs() {
+    var tabs = [
+      { k: 'meds', l: '💊 Meds' },
+      { k: 'todo', l: '📝 To Do List' },
+      { k: 'call', l: '📞 Call' },
+      { k: 'photos', l: '🖼️ Pictures' },
+      { k: 'settings', l: '⚙️ Settings' }
+    ];
+    return '<div class="main-tabs">' + tabs.map(function (t) {
+      return '<button type="button" class="main-tab' + (state.view === t.k ? ' on' : '') + '" data-main-tab="' + t.k + '">' + t.l + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function todayISO(nowOpt) {
+    var d = nowOpt || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function currentTimeAP(nowOpt) {
+    var d = nowOpt || new Date();
+    var h = d.getHours();
+    var m = String(d.getMinutes()).padStart(2, '0');
+    var ap = h >= 12 ? 'p' : 'a';
+    return (h % 12 || 12) + ':' + m + ' ' + ap;
+  }
+
+  function formatMMDD(iso) {
+    if (!iso || iso.indexOf('-') === -1) return '—';
+    var p = iso.split('-');
+    return p[1] + '/' + p[2];
+  }
+
+  function normalizeTimeInput(raw) {
+    var s = String(raw || '').trim().toLowerCase();
+    if (!s) return '';
+    var apMatch = s.match(/^(\d{1,2}):(\d{2})\s*([ap])m?$/);
+    if (apMatch) {
+      var h0 = parseInt(apMatch[1], 10);
+      if (h0 >= 1 && h0 <= 12) return h0 + ':' + apMatch[2] + ' ' + apMatch[3];
+    }
+    var digits = s.replace(/\D/g, '');
+    if (digits.length === 3 || digits.length === 4) {
+      var num = parseInt(digits, 10);
+      var h = Math.floor(num / 100);
+      var m = num % 100;
+      if (m < 60 && h >= 1 && h <= 12) {
+        var ap = (h >= 7 && h <= 11) ? 'a' : 'p';
+        return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
+      }
+    }
+    return s;
+  }
+
+  function timeAPToMinutes(tStr) {
+    if (!tStr) return -1;
+    var m = String(tStr).trim().toLowerCase().match(/^(\d{1,2}):(\d{2})\s*([ap])/);
+    if (!m) return 9999;
+    var h = parseInt(m[1], 10) % 12;
+    if (m[3] === 'p') h += 12;
+    return h * 60 + parseInt(m[2], 10);
+  }
+
+  function sortTodosList(list) {
+    return list.slice().sort(function (a, b) {
+      var ad = a.dateISO || '';
+      var bd = b.dateISO || '';
+      if (!ad && bd) return -1;
+      if (ad && !bd) return 1;
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      return timeAPToMinutes(a.timeStr) - timeAPToMinutes(b.timeStr);
+    });
+  }
+
+  function parseSmartTodo(raw, fallbackDateISO, fallbackTimeStr, nowOpt) {
+    var now = nowOpt || new Date();
+    var text = String(raw || '').trim();
+    if (!text) return { desc: '', dateISO: fallbackDateISO, timeStr: fallbackTimeStr };
+
+    var lower = text.toLowerCase();
+    var dateISO = fallbackDateISO;
+    var dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    if (/\btoday\b/.test(lower)) {
+      dateISO = todayISO(now);
+    } else if (/\btomorrow\b/.test(lower)) {
+      dateISO = todayISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+    } else {
+      for (var d = 0; d < 7; d++) {
+        if (new RegExp('\\b' + dayNames[d] + '\\b', 'i').test(lower)) {
+          var diff = (d - now.getDay() + 7) % 7;
+          if (diff === 0) diff = 7;
+          dateISO = todayISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff));
+          break;
+        }
+      }
+    }
+
+    var timeStr = fallbackTimeStr;
+    var tm = lower.match(/\b(by|before|nlt|at)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
+    if (tm && (tm[1] || tm[4] || tm[3])) {
+      var h = parseInt(tm[2], 10);
+      var m = parseInt(tm[3] || '0', 10);
+      var ap = tm[4] ? tm[4].charAt(0) : ((h >= 7 && h <= 11) ? 'a' : 'p');
+      var h12 = h % 12 || 12;
+      timeStr = h12 + ':' + String(m).padStart(2, '0') + ' ' + ap;
+    }
+
+    var clean = text
+      .replace(/^(we need to|i need to|need to|remember to|please)\s+/i, '')
+      .replace(/\b(on\s+)?(today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi, '')
+      .replace(/\b(by|before|nlt|at)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^[\s,.-]+|[\s,.-]+$/g, '');
+    if (!clean) clean = text;
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+
+    return { desc: clean, dateISO: dateISO, timeStr: timeStr };
+  }
+
+  function renderTodoView() {
+    if (state.todoDate === '' && !state._todoDateInited) {
+      state.todoDate = todayISO();
+      state.todoTime = currentTimeAP();
+      state._todoDateInited = true;
+    }
+    var fromList = ['Gene', 'Peggy', 'Tom', 'Katie'];
+    var whoList = ['Gene', 'Peggy', 'Both'];
+    var fromPills = fromList.map(function (f) {
+      return '<button type="button" class="pill' + (state.todoFrom === f ? ' on' : '') + '" data-todo-from="' + f + '">' + f + '</button>';
+    }).join('');
+    var whoPills = whoList.map(function (w) {
+      return '<button type="button" class="pill' + (state.todoWho === w ? ' on' : '') + '" data-todo-who="' + w + '">' + w + '</button>';
+    }).join('');
+
+    var sorted = sortTodosList(state.todos || []);
+    var rowsHtml = sorted.length
+      ? sorted.map(function (td) {
+          var realIdx = (state.todos || []).indexOf(td);
+          var desc = td.desc || td.text || '';
+          return (
+            '<tr class="' + (td.done ? 'todo-row-done' : '') + '">' +
+              '<td style="width:46px"><div class="box' + (td.done ? ' on' : '') + '" data-toggle-todo="' + realIdx + '" style="cursor:pointer">' + (td.done ? '✓' : '') + '</div></td>' +
+              '<td style="width:76px;white-space:nowrap">' + esc(formatMMDD(td.dateISO)) + '</td>' +
+              '<td style="width:94px;white-space:nowrap">' + esc(td.timeStr || '—') + '</td>' +
+              '<td style="width:86px"><span class="who-tag ' + esc((td.who || 'Both').toLowerCase()) + '">' + esc(td.who || 'Both') + '</span></td>' +
+              '<td class="todo-desc" data-toggle-todo="' + realIdx + '" style="cursor:pointer">' + esc(desc) + '</td>' +
+              '<td style="width:86px;white-space:nowrap">' + esc(td.from || '') + '</td>' +
+              '<td style="width:60px;vertical-align:bottom">' +
+                '<button type="button" class="del-cell" data-del-todo="' + realIdx + '">' +
+                  '<span class="del-x-box">✕</span><span class="del-lbl">Delete</span>' +
+                '</button>' +
+              '</td>' +
+            '</tr>'
+          );
+        }).join('')
+      : '<tr><td colspan="7" style="text-align:center;padding:24px;color:#666">No notes or tasks yet.</td></tr>';
+
+    var inIframe = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
+    var popupHtml = '';
+    if (state.todoPopupOpen) {
+      popupHtml =
+        '<div class="dlg"><div class="c" style="text-align:left;max-width:1120px;width:94%;padding:24px 28px">' +
+          '<div class="lbl" style="margin-top:0">For</div><div>' + whoPills + '</div>' +
+          '<div class="lbl">From</div><div>' + fromPills + '</div>' +
+          '<div style="display:flex;gap:12px;margin-top:6px">' +
+            '<div style="width:180px"><div class="lbl" style="margin-top:4px">Date</div><input type="date" class="field" id="todo-date" value="' + esc(state.todoDate) + '"></div>' +
+            '<div style="width:140px"><div class="lbl" style="margin-top:4px">Time</div><input class="field" id="todo-time" value="' + esc(state.todoTime) + '" placeholder="e.g. 730"></div>' +
+          '</div>' +
+          '<div class="lbl">Add a task' + (inIframe ? ' <span style="font-size:15px;font-weight:600;color:#666">(tap 🎤 on tablet keyboard to dictate)</span>' : '') + '</div>' +
+          '<textarea class="field" id="todo-popup-text" rows="3" placeholder="Add a task…">' + esc(state.todoDraft) + '</textarea>' +
+          '<div style="display:flex;gap:12px;margin-top:16px">' +
+            (inIframe ? '' : '<button type="button" class="btn red' + (state.isListening ? ' listening' : '') + '" style="height:68px" id="btn-popup-voice">' + (state.isListening ? 'Listening…' : '🎤 Voice') + '</button>') +
+            '<button type="button" class="btn call" style="height:68px" id="btn-popup-add">Add</button>' +
+            '<button type="button" class="btn edit" style="height:68px;flex:0.6" id="btn-popup-cancel">Cancel</button>' +
+          '</div>' +
+        '</div></div>';
+    }
+
+    return (
+      '<div class="todo-page">' +
+        '<div class="todo-bar">' +
+          '<input class="field" id="todo-input" value="' + esc(state.todoDraft) + '" placeholder="Add a task…" readonly style="cursor:pointer;flex:1">' +
+          '<button type="button" class="sm-btn green" id="btn-add-todo">Add</button>' +
+          (inIframe ? '' : '<button type="button" class="mic-btn" id="btn-voice-todo">🎤 Voice</button>') +
+        '</div>' +
+        '<div class="todo-table-wrap">' +
+          '<table class="todo-table">' +
+            '<thead><tr><th></th><th>Date</th><th>Time</th><th>Who</th><th>Description</th><th>From</th><th></th></tr></thead>' +
+            '<tbody>' + rowsHtml + '</tbody>' +
+          '</table>' +
+        '</div>' +
+        popupHtml +
+      '</div>'
+    );
+  }
+
+  function renderCallPeopleView() {
+    var cfg = state.config || {};
+    var contacts = getMeetContactsFromConfig(cfg);
+    var meetAppIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.tachyon;end';
+
+    var cards = contacts.filter(function (c) { return c.name; }).map(function (c) {
+      var phoneBtn = c.phone
+        ? '<a class="call-big-btn" style="background:#1f8a3b" target="_top" href="tel:' + esc(c.phone) + '">📞 Phone</a>'
+        : '<button type="button" class="call-big-btn" style="background:#5b5b5b" onclick="return false;">📞 No Phone</button>';
+      var videoBtn = '<a class="call-big-btn" style="background:#2f5fb3" target="_top" href="' + meetAppIntent + '">📹 Video</a>';
+
+      return (
+        '<div class="call-person-card">' +
+          '<div class="call-person-head">' + avatarHtml(c.name, c.photoUrl) + '<span>' + esc(c.name) + '</span></div>' +
+          '<div class="call-person-btns">' + phoneBtn + videoBtn + '</div>' +
+        '</div>'
+      );
+    });
+
+    if (cfg.doctorPhone) {
+      var docName = cfg.doctorName || 'Doctor';
+      cards.push(
+        '<div class="call-person-card">' +
+          '<div class="call-person-head">' + avatarHtml(docName, '') + '<span>' + esc(docName) + '</span></div>' +
+          '<div class="call-person-btns"><a class="call-big-btn" style="background:#c62828" target="_top" href="tel:' + esc(cfg.doctorPhone) + '">📞 Phone</a></div>' +
+        '</div>'
+      );
+    }
+    cards.push(
+      '<div class="call-person-card">' +
+        '<div class="call-person-head">' + avatarHtml('+', '') + '<span>New</span></div>' +
+        '<div class="call-person-btns">' +
+          '<button type="button" class="call-big-btn" style="background:#1f8a3b" id="btn-open-new-phone">📞 Phone</button>' +
+          '<button type="button" class="call-big-btn" style="background:#2f5fb3" id="btn-open-new-video">📹 Video</button>' +
+        '</div>' +
+      '</div>'
+    );
+
+    var dialHtml = '';
+    if (state.showCallOthers) {
+      var mode = state.newCallMode || 'phone';
+      var modeTabs =
+        '<div style="display:flex;gap:10px;margin-bottom:14px">' +
+          '<button type="button" class="btn ' + (mode === 'phone' ? 'call' : 'edit') + '" style="height:56px;font-size:22px" id="btn-new-mode-phone">📞 Phone</button>' +
+          '<button type="button" class="btn ' + (mode === 'video' ? 'photos' : 'edit') + '" style="height:56px;font-size:22px" id="btn-new-mode-video">📹 Video</button>' +
+        '</div>';
+
+      if (mode === 'phone') {
+        var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', '⌫'];
+        var keysHtml = keys.map(function (k) {
+          return '<button type="button" class="dial-key" data-dial-key="' + k + '">' + k + '</button>';
+        }).join('');
+        var digits = state.dialNumber || '';
+        var callHref = digits ? ('tel:' + esc(digits)) : '#';
+        dialHtml =
+          '<div class="dlg"><div class="c" style="max-width:500px">' +
+            modeTabs +
+            '<div class="dial-readout">' + esc(digits || '—') + '</div>' +
+            '<div class="dial-grid">' + keysHtml + '</div>' +
+            '<div class="bb">' +
+              (digits
+                ? '<a class="btn call" style="height:72px;text-decoration:none" target="_top" href="' + callHref + '">📞 Call</a>'
+                : '<button type="button" class="btn call" style="height:72px;opacity:.5" disabled>📞 Call</button>') +
+              '<button type="button" class="btn edit" style="height:72px" id="btn-close-dialpad">Cancel</button>' +
+            '</div>' +
+          '</div></div>';
+      } else {
+        var meetAppIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.tachyon;end';
+        dialHtml =
+          '<div class="dlg"><div class="c" style="max-width:560px;text-align:left">' +
+            modeTabs +
+            '<div class="lbl" style="margin-top:0">Email address to video call</div>' +
+            '<input type="email" class="field" id="dial-email-input" value="' + esc(state.dialEmail || '') + '" placeholder="name@gmail.com">' +
+            '<div class="bb" style="margin-top:18px">' +
+              '<a class="btn photos" style="height:72px;text-decoration:none" target="_top" href="' + meetAppIntent + '">📹 Open Meet</a>' +
+              '<button type="button" class="btn edit" style="height:72px" id="btn-close-dialpad">Cancel</button>' +
+            '</div>' +
+          '</div></div>';
+      }
+    }
+    return '<div class="edit-body"><div class="call-grid">' + cards.join('') + '</div>' + dialHtml + '</div>';
+  }
+
+  function renderVideoBanner() {
+    if (!state.videos || !state.videos.length) return '';
+    return (
+      '<div class="video-banner">' +
+        '<span>🎥 New family video message (' + state.videos.length + ')</span>' +
+        '<button type="button" class="sm-btn blue" id="btn-watch-video">Watch</button>' +
+      '</div>'
+    );
+  }
+
+  function renderVideoModal() {
+    if (!state.activeVideo) return '';
+    return (
+      '<div class="dlg"><div class="c" style="max-width:860px">' +
+        '<div class="q" style="font-size:26px">' + esc(state.activeVideo.name) + '</div>' +
+        '<iframe src="' + esc(state.activeVideo.previewUrl) + '" style="width:100%;height:420px;border:none;border-radius:14px;background:#000" allow="autoplay"></iframe>' +
+        '<div class="bb" style="margin-top:16px">' +
+          '<button type="button" class="btn call" id="btn-mark-watched">✓ Mark Watched</button>' +
+          '<button type="button" class="btn edit" id="btn-close-video">Close</button>' +
+        '</div>' +
+      '</div></div>'
+    );
+  }
+
+  function render() {
+    var scrollSaved = [];
+    document.querySelectorAll('.col').forEach(function (c) { scrollSaved.push(c.scrollTop); });
+    document.body.classList.toggle('dark', !!(state.config && state.config.theme === 'dark'));
+    var now = new Date();
+    var geneView = computePersonView('gene', now);
+    var peggyView = computePersonView('peggy', now);
+    var dueKey = updateAutoView(geneView, peggyView);
+    var app = document.getElementById('app');
+
+    if (state.view !== 'edit') {
+      maybePlayAlarm(dueKey, now);
+    }
+
+    if (state.view === 'edit') {
+      app.innerHTML = renderEditScreen();
+    } else if (state.view === 'photos') {
+      var photoHtml = (state.photos && state.photos.length)
+        ? '<img class="ph-img" src="' + esc(state.photos[state.photoIdx % state.photos.length].url) + '" alt="Family photo">'
+        : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in ⚙️ Settings</span></div>';
+
+      app.innerHTML =
+        '<div class="screen-meds">' +
+          renderTopBar(now) +
+          renderMainTabs() +
+          renderVideoBanner() +
+          '<div class="screen-photos">' +
+            photoHtml +
+            (!state.audioUnlocked ? '<div class="sound-pill" style="position:absolute;top:16px;left:16px;z-index:2" id="btn-unlock-sound">🔊 Tap once to enable sound</div>' : '') +
+          '</div>' +
+          renderVideoModal() +
+        '</div>';
+    } else if (state.view === 'todo') {
+      app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + renderTodoView() + '</div>';
+    } else if (state.view === 'call') {
+      app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + renderCallPeopleView() + '</div>';
+    } else if (state.view === 'settings') {
+      app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + '<div class="edit-body">' + renderSettingsTab() + '</div></div>';
+    } else {
+      app.innerHTML =
+        '<div class="screen-meds">' +
+          renderTopBar(now) +
+          renderMainTabs() +
+          renderVideoBanner() +
+          '<div class="cols">' +
+            renderColumn('gene', 'Gene', geneView) +
+            renderColumn('peggy', 'Peggy', peggyView) +
+          '</div>' +
+          renderVideoModal() +
+        '</div>';
+    }
+
+    bindEvents(dueKey);
+    var colsNow = document.querySelectorAll('.col');
+    scrollSaved.forEach(function (st, idx) {
+      if (colsNow[idx]) colsNow[idx].scrollTop = st;
+    });
+  }
+
+  function syncFormInputs() {
+    if (!state.editMed) return;
+    var n = document.getElementById('f-name');
+    if (n) state.editMed.name = n.value;
+    var s = document.getElementById('f-strength');
+    if (s) state.editMed.strength = s.value;
+    var d = document.getElementById('f-dose');
+    if (d) state.editMed.dose = d.value;
+    var nt = document.getElementById('f-note');
+    if (nt) state.editMed.note = nt.value;
+    var w = document.getElementById('f-warning');
+    if (w) state.editMed.warning = w.value;
+  }
+
+  function canonicalJson(val) {
+    if (Array.isArray(val)) return '[' + val.map(canonicalJson).join(',') + ']';
+    if (val && typeof val === 'object') {
+      return '{' + Object.keys(val).sort().map(function (k) {
+        return JSON.stringify(k) + ':' + canonicalJson(val[k]);
+      }).join(',') + '}';
+    }
+    return JSON.stringify(val);
+  }
+
+  function computeStateSig(src) {
+    if (!src) return '';
+    return canonicalJson({
+      s: src.slots || [],
+      m: src.meds || [],
+      l: src.todayLogs || {},
+      c: src.config || {},
+      t: src.todos || [],
+      n: src.notes || []
+    });
+  }
+
+  function applyStateResponse(res) {
+    if (!res) return;
+    state.slots = res.slots || [];
+    state.meds = res.meds || [];
+    state.todayLogs = res.todayLogs || {};
+    state.todayKey = res.todayKey || '';
+    if (res.config) state.config = res.config;
+    if (res.history) state.history = res.history;
+    if (res.todos) state.todos = res.todos;
+    if (res.notes) state.notes = res.notes;
+    lastStateSig = computeStateSig(state);
+  }
+
+  function updateScrollHints() {
+    document.querySelectorAll('.col-wrap').forEach(function (wrap) {
+      var col = wrap.querySelector('.col');
+      var hint = wrap.querySelector('.scroll-hint');
+      if (!col || !hint) return;
+      var more = col.scrollHeight > col.clientHeight + col.scrollTop + 10;
+      hint.classList.toggle('show', more);
+    });
+  }
+
+  function bindEvents(dueKey) {
+    setTimeout(updateScrollHints, 50);
+    document.querySelectorAll('.col').forEach(function (col) {
+      col.addEventListener('scroll', updateScrollHints);
+    });
+    document.querySelectorAll('[data-scroll-col]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var wrap = btn.closest('.col-wrap');
+        var col = wrap ? wrap.querySelector('.col') : null;
+        if (col) col.scrollBy({ top: 180, behavior: 'smooth' });
+      });
+    });
+    var medEls = document.querySelectorAll('[data-med-id]');
+    for (var i = 0; i < medEls.length; i++) medEls[i].addEventListener('click', onMedTap);
+
+    document.querySelectorAll('[data-toggle-expand]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var key = el.getAttribute('data-toggle-expand');
+        state.expandedSlots[key] = !state.expandedSlots[key];
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-clear-person]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var person = el.getAttribute('data-clear-person');
+        var who = person === 'peggy' ? 'Peggy' : 'Gene';
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.withSuccessHandler(function (res) {
+            if (res && res.todayLogs) {
+              state.todayLogs = res.todayLogs;
+              state.todayKey = res.todayKey;
+              render();
+              showToast('Cleared ' + who + "'s list");
+            }
+          }).apiClearPersonLogs(person, state.todayKey);
+        }
+      });
+    });
+
+    var unlockEl = document.getElementById('btn-unlock-sound');
+    if (unlockEl) unlockEl.addEventListener('click', function () { unlockAudio(); render(); showToast('Sound enabled'); });
+
+    var snoozeEl = document.getElementById('btn-snooze');
+    if (snoozeEl) snoozeEl.addEventListener('click', function () {
+      var mins = (state.config && state.config.snoozeMin) || 10;
+      state.snoozedUntilMs = Date.now() + mins * 60000;
+      render();
+      showToast('Snoozed for ' + mins + ' minutes');
+    });
+
+    var toPhotos = document.getElementById('btn-to-photos');
+    if (toPhotos) toPhotos.addEventListener('click', function () {
+      unlockAudio();
+      state.manualView = 'photos';
+      state.dismissedDueKey = dueKey;
+      state.view = 'photos';
+      render();
+    });
+
+    var toMeds = document.getElementById('btn-to-meds');
+    if (toMeds) toMeds.addEventListener('click', function () {
+      unlockAudio();
+      state.manualView = 'meds';
+      state.view = 'meds';
+      render();
+    });
+
+    var banner = document.getElementById('open-meds-banner');
+    if (banner) banner.addEventListener('click', function () {
+      unlockAudio();
+      state.manualView = null;
+      state.dismissedDueKey = '';
+      state.view = 'meds';
+      render();
+    });
+
+    var callTom = document.getElementById('btn-call-tom');
+    if (callTom) callTom.addEventListener('click', function () { triggerCall('tom'); });
+
+    var callKatie = document.getElementById('btn-call-katie');
+    if (callKatie) callKatie.addEventListener('click', function () { triggerCall('katie'); });
+
+    var callLaura = document.getElementById('btn-call-laura');
+    if (callLaura) callLaura.addEventListener('click', function () { triggerCall('laura'); });
+
+    var callMatt = document.getElementById('btn-call-matt');
+    if (callMatt) callMatt.addEventListener('click', function () { triggerCall('matt'); });
+
+    var openNewPhone = document.getElementById('btn-open-new-phone');
+    if (openNewPhone) openNewPhone.addEventListener('click', function () {
+      state.dialNumber = '';
+      state.newCallMode = 'phone';
+      state.showCallOthers = true;
+      render();
+    });
+
+    var openNewVideo = document.getElementById('btn-open-new-video');
+    if (openNewVideo) openNewVideo.addEventListener('click', function () {
+      state.dialEmail = '';
+      state.newCallMode = 'video';
+      state.showCallOthers = true;
+      render();
+      setTimeout(function () {
+        var inp = document.getElementById('dial-email-input');
+        if (inp) inp.focus();
+      }, 40);
+    });
+
+    var modePhone = document.getElementById('btn-new-mode-phone');
+    if (modePhone) modePhone.addEventListener('click', function () {
+      state.newCallMode = 'phone';
+      render();
+    });
+
+    var modeVideo = document.getElementById('btn-new-mode-video');
+    if (modeVideo) modeVideo.addEventListener('click', function () {
+      state.newCallMode = 'video';
+      render();
+      setTimeout(function () {
+        var inp = document.getElementById('dial-email-input');
+        if (inp) inp.focus();
+      }, 40);
+    });
+
+    var dialEmailInp = document.getElementById('dial-email-input');
+    if (dialEmailInp) dialEmailInp.addEventListener('input', function () {
+      state.dialEmail = dialEmailInp.value;
+    });
+
+    var closeDial = document.getElementById('btn-close-dialpad');
+    if (closeDial) closeDial.addEventListener('click', function () {
+      state.showCallOthers = false;
+      render();
+    });
+
+    document.querySelectorAll('[data-dial-key]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var k = el.getAttribute('data-dial-key');
+        if (k === 'Clear') state.dialNumber = '';
+        else if (k === '⌫') state.dialNumber = (state.dialNumber || '').slice(0, -1);
+        else if ((state.dialNumber || '').length < 15) state.dialNumber = (state.dialNumber || '') + k;
+        render();
+      });
+    });
+
+    var callOthers = document.getElementById('btn-call-others');
+    if (callOthers) callOthers.addEventListener('click', function () {
+      state.view = 'call';
+      render();
+    });
+
+    document.querySelectorAll('[data-main-tab]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        unlockAudio();
+        var target = el.getAttribute('data-main-tab');
+        if (target === 'photos') {
+          state.manualView = 'photos';
+          state.dismissedDueKey = dueKey;
+        } else if (target === 'meds') {
+          state.manualView = 'meds';
+        }
+        state.view = target;
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-call-extra]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var name = el.getAttribute('data-call-extra');
+        var url = el.getAttribute('data-call-url');
+        state.showCallOthers = false;
+        render();
+        triggerCall(name, url);
+      });
+    });
+
+    document.querySelectorAll('[data-edit-person]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        unlockAudio();
+        state.view = 'edit';
+        state.editTab = 'list';
+        render();
+      });
+    });
+
+    var settingsBtn = document.getElementById('btn-settings');
+    if (settingsBtn) settingsBtn.addEventListener('click', function () {
+      unlockAudio();
+      state.view = 'edit';
+      state.editTab = 'settings';
+      render();
+    });
+
+    var saveExitBtn = document.getElementById('btn-save-exit');
+    if (saveExitBtn) saveExitBtn.addEventListener('click', function () {
+      if (state.editTab === 'form' && state.editMed) {
+        syncFormInputs();
+        if (state.editMed.name && state.editMed.name.trim()) {
+          google.script.run.withSuccessHandler(function (res) {
+            applyStateResponse(res);
+            state.editMed = null;
+            state.view = 'meds';
+            state.manualView = 'meds';
+            render();
+            showToast('Medication saved');
+          }).apiSaveMed(state.editMed);
+          return;
+        }
+      }
+      if (state.editTab === 'settings') {
+        saveSettingsFromDom(false);
+      }
+      state.editMed = null;
+      state.view = 'meds';
+      state.manualView = 'meds';
+      render();
+    });
+
+    var exitBtn = document.getElementById('btn-exit');
+    if (exitBtn) exitBtn.addEventListener('click', function () {
+      state.editMed = null;
+      state.view = 'meds';
+      state.manualView = 'meds';
+      render();
+    });
+
+    document.querySelectorAll('[data-tab]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var t = el.getAttribute('data-tab');
+        if (t === 'form' && !state.editMed) {
+          state.editMed = { person: 'gene', slotId: '', name: '', strength: '', dose: '', note: '', warning: '', freq: 'daily', days: [] };
+        }
+        state.editTab = t;
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-save-slot]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var sid = el.getAttribute('data-save-slot');
+        var inp = document.getElementById('slot-time-' + sid);
+        if (!inp || !inp.value) return;
+        google.script.run.withSuccessHandler(function (res) {
+          applyStateResponse(res);
+          render();
+          showToast('Time saved');
+        }).apiSaveSlot({ id: sid, time: inp.value });
+      });
+    });
+
+    document.querySelectorAll('[data-edit-med]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var mid = el.getAttribute('data-edit-med');
+        var found = state.meds.find(function (m) { return m.id === mid; });
+        if (!found) return;
+        state.editMed = JSON.parse(JSON.stringify(found));
+        state.editTab = 'form';
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-del-med]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var mid = el.getAttribute('data-del-med');
+        state.deleteTarget = state.meds.find(function (m) { return m.id === mid; }) || null;
+        render();
+      });
+    });
+
+    var dlgCancel = document.getElementById('dlg-cancel');
+    if (dlgCancel) dlgCancel.addEventListener('click', function () { state.deleteTarget = null; render(); });
+
+    var dlgConfirm = document.getElementById('dlg-confirm');
+    if (dlgConfirm) dlgConfirm.addEventListener('click', function () {
+      var target = state.deleteTarget;
+      state.deleteTarget = null;
+      if (!target) return;
+      google.script.run.withSuccessHandler(function (res) {
+        applyStateResponse(res);
+        render();
+        showToast('Deleted ' + target.name);
+      }).apiDeleteMed(target.id);
+    });
+
+    document.querySelectorAll('[data-form-person]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        state.editMed.person = el.getAttribute('data-form-person');
+        state.editMed.slotId = '';
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-form-slot]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        state.editMed.slotId = el.getAttribute('data-form-slot');
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-form-freq]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        state.editMed.freq = el.getAttribute('data-form-freq');
+        if (!Array.isArray(state.editMed.days)) state.editMed.days = [];
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-form-day]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        syncFormInputs();
+        var d = parseInt(el.getAttribute('data-form-day'), 10);
+        var arr = Array.isArray(state.editMed.days) ? state.editMed.days : [];
+        if (state.editMed.freq === 'weekly') {
+          state.editMed.days = [d];
+        } else {
+          var idx = arr.indexOf(d);
+          if (idx >= 0) arr.splice(idx, 1);
+          else arr.push(d);
+          state.editMed.days = arr;
+        }
+        render();
+      });
+    });
+
+    var saveMedBtn = document.getElementById('btn-save-med');
+    if (saveMedBtn) saveMedBtn.addEventListener('click', function () {
+      syncFormInputs();
+      if (!state.editMed.name.trim()) { showToast('Please enter a medication name'); return; }
+      google.script.run.withSuccessHandler(function (res) {
+        applyStateResponse(res);
+        state.editMed = null;
+        state.editTab = 'list';
+        render();
+        showToast('Medication saved');
+      }).apiSaveMed(state.editMed);
+    });
+
+    document.querySelectorAll('[data-undo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var hid = el.getAttribute('data-undo');
+        google.script.run.withSuccessHandler(function (res) {
+          applyStateResponse(res);
+          render();
+          showToast('Change undone');
+        }).apiUndoHistory(hid);
+      });
+    });
+
+    document.querySelectorAll('[data-todo-from]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var ta = document.getElementById('todo-popup-text');
+        if (ta) state.todoDraft = ta.value;
+        state.todoFrom = el.getAttribute('data-todo-from');
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-todo-who]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var ta = document.getElementById('todo-popup-text');
+        if (ta) state.todoDraft = ta.value;
+        state.todoWho = el.getAttribute('data-todo-who');
+        render();
+      });
+    });
+
+    var todoDateEl = document.getElementById('todo-date');
+    if (todoDateEl) todoDateEl.addEventListener('change', function () {
+      state.todoDate = todoDateEl.value || '';
+    });
+
+    var todoTimeEl = document.getElementById('todo-time');
+    if (todoTimeEl) todoTimeEl.addEventListener('change', function () {
+      state.todoTime = normalizeTimeInput(todoTimeEl.value);
+      todoTimeEl.value = state.todoTime;
+    });
+
+    var todoInpEl = document.getElementById('todo-input');
+    if (todoInpEl) todoInpEl.addEventListener('click', function () {
+      state.todoPopupOpen = true;
+      render();
+      setTimeout(function () {
+        var ta = document.getElementById('todo-popup-text');
+        if (ta) ta.focus();
+      }, 40);
+    });
+
+    var voiceBtn = document.getElementById('btn-voice-todo');
+    if (voiceBtn) voiceBtn.addEventListener('click', function () {
+      state.todoPopupOpen = true;
+      render();
+      startVoiceIntoPopup();
+    });
+
+    var popupTa = document.getElementById('todo-popup-text');
+    if (popupTa) popupTa.addEventListener('input', function () {
+      state.todoDraft = popupTa.value;
+    });
+
+    var popupVoiceBtn = document.getElementById('btn-popup-voice');
+    if (popupVoiceBtn) popupVoiceBtn.addEventListener('click', startVoiceIntoPopup);
+
+    var popupCancelBtn = document.getElementById('btn-popup-cancel');
+    if (popupCancelBtn) popupCancelBtn.addEventListener('click', function () {
+      state.todoPopupOpen = false;
+      state.isListening = false;
+      state.todoDraft = '';
+      render();
+    });
+
+    var popupAddBtn = document.getElementById('btn-popup-add');
+    if (popupAddBtn) popupAddBtn.addEventListener('click', function () {
+      var ta = document.getElementById('todo-popup-text');
+      var txt = ta ? ta.value.trim() : state.todoDraft.trim();
+      state.todoPopupOpen = false;
+      state.isListening = false;
+      state.todoDraft = '';
+      if (txt) addSmartTodo(txt);
+      else render();
+    });
+
+    var addTodoBtn = document.getElementById('btn-add-todo');
+    if (addTodoBtn) addTodoBtn.addEventListener('click', function () {
+      if (state.todoDraft && state.todoDraft.trim()) {
+        var txt = state.todoDraft.trim();
+        state.todoDraft = '';
+        addSmartTodo(txt);
+      } else {
+        state.todoPopupOpen = true;
+        render();
+      }
+    });
+
+    var watchBtn = document.getElementById('btn-watch-video');
+    if (watchBtn) watchBtn.addEventListener('click', function () {
+      if (state.videos && state.videos.length) {
+        state.activeVideo = state.videos[0];
+        render();
+      }
+    });
+
+    var closeVidBtn = document.getElementById('btn-close-video');
+    if (closeVidBtn) closeVidBtn.addEventListener('click', function () {
+      state.activeVideo = null;
+      render();
+    });
+
+    var markVidBtn = document.getElementById('btn-mark-watched');
+    if (markVidBtn) markVidBtn.addEventListener('click', function () {
+      var v = state.activeVideo;
+      state.activeVideo = null;
+      if (v) {
+        state.videos = state.videos.filter(function (x) { return x.id !== v.id; });
+        render();
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.apiMarkVideoWatched(v.id);
+        }
+      } else {
+        render();
+      }
+    });
+
+    document.querySelectorAll('[data-toggle-todo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-toggle-todo'), 10);
+        if (state.todos[idx]) {
+          state.todos[idx].done = !state.todos[idx].done;
+          render();
+          if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run.apiSaveTodos(state.todos);
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-del-todo]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-del-todo'), 10);
+        state.todos.splice(idx, 1);
+        render();
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.apiSaveTodos(state.todos);
+        }
+      });
+    });
+
+    var addNoteBtn = document.getElementById('btn-add-note');
+    if (addNoteBtn) addNoteBtn.addEventListener('click', function () {
+      var inp = document.getElementById('note-input');
+      if (!inp || !inp.value.trim()) return;
+      var d = new Date();
+      state.notes.unshift({ text: inp.value.trim(), date: formatDateLine(d) + ' ' + formatClock(d) });
+      render();
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.apiSaveNotes(state.notes);
+      }
+    });
+
+    document.querySelectorAll('[data-del-note]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-del-note'), 10);
+        state.notes.splice(idx, 1);
+        render();
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.apiSaveNotes(state.notes);
+        }
+      });
+    });
+
+    document.querySelectorAll('[id^="s-"], [data-meet-name], [data-meet-phone], [data-meet-url], [data-meet-photo]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        saveSettingsFromDom(true);
+      });
+    });
+
+    var addMeetBtn = document.getElementById('btn-add-meet');
+    if (addMeetBtn) addMeetBtn.addEventListener('click', function () {
+      var contacts = readMeetContactsFromDom();
+      contacts.push({ name: '', phone: '', url: '', photoUrl: '' });
+      state.config.meetContacts = contacts;
+      render();
+    });
+
+    document.querySelectorAll('[data-del-meet]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-del-meet'), 10);
+        var contacts = readMeetContactsFromDom();
+        contacts.splice(idx, 1);
+        state.config.meetContacts = contacts;
+        saveSettingsFromDom(true);
+        render();
+      });
+    });
+  }
+
+  function readMeetContactsFromDom() {
+    var rows = document.querySelectorAll('[data-meet-idx]');
+    var list = [];
+    rows.forEach(function (row) {
+      var n = row.querySelector('[data-meet-name]');
+      var ph = row.querySelector('[data-meet-phone]');
+      var u = row.querySelector('[data-meet-url]');
+      var p = row.querySelector('[data-meet-photo]');
+      list.push({
+        name: n ? n.value.trim() : '',
+        phone: ph ? ph.value.trim() : '',
+        url: u ? u.value.trim() : '',
+        photoUrl: p ? p.value.trim() : ''
+      });
+    });
+    return list;
+  }
+
+  function startVoiceIntoPopup() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { showToast('Voice input not supported in this browser'); return; }
+    var rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    state.isListening = true;
+    render();
+    rec.onresult = function (ev) {
+      state.isListening = false;
+      var transcript = ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : '';
+      if (transcript) {
+        state.todoDraft = (state.todoDraft ? state.todoDraft + ' ' : '') + transcript;
+      }
+      render();
+      var ta = document.getElementById('todo-popup-text');
+      if (ta) ta.focus();
+    };
+    rec.onerror = function (ev) {
+      state.isListening = false;
+      render();
+      var msg = (ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed'))
+        ? 'Mic blocked by Google Apps Script frame — tap 🎤 on the tablet keyboard instead'
+        : 'Could not hear voice — try again';
+      showToast(msg);
+    };
+    rec.start();
+  }
+
+  function addSmartTodo(rawText) {
+    var parsed = parseSmartTodo(rawText, state.todoDate, state.todoTime);
+    if (!parsed.desc) return;
+    state.todos.push({
+      desc: parsed.desc,
+      dateISO: parsed.dateISO,
+      timeStr: parsed.timeStr,
+      who: state.todoWho || 'Both',
+      from: state.todoFrom || 'Gene',
+      done: false
+    });
+    state.todos = sortTodosList(state.todos);
+    render();
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.apiSaveTodos(state.todos);
+    }
+  }
+
+  function saveSettingsFromDom(keepEditView) {
+    if (!document.getElementById('s-alertEmail')) return;
+    var contacts = readMeetContactsFromDom();
+    var findUrl = function (label, fallbackIdx) {
+      var found = contacts.find(function (c) { return c.name.toLowerCase() === label; });
+      if (found) return found.url;
+      return contacts[fallbackIdx] ? contacts[fallbackIdx].url : '';
+    };
+    var payload = {
+      alertEmail: document.getElementById('s-alertEmail').value.trim(),
+      smsGatewayEmail: document.getElementById('s-smsGatewayEmail').value.trim(),
+      katieEmail: document.getElementById('s-katieEmail').value.trim(),
+      driveFolderId: document.getElementById('s-driveFolderId').value.trim(),
+      videoFolderId: document.getElementById('s-videoFolderId').value.trim(),
+      doctorName: document.getElementById('s-doctorName').value.trim(),
+      doctorPhone: document.getElementById('s-doctorPhone').value.trim(),
+      meetContacts: contacts,
+      meetUrlTom: findUrl('tom', 0),
+      meetUrlKatie: findUrl('katie', 1),
+      meetUrlMatt: findUrl('matt', 2),
+      meetUrlLaura: findUrl('laura', 3),
+      quietStart: document.getElementById('s-quietStart').value,
+      quietEnd: document.getElementById('s-quietEnd').value,
+      missedDelayMin: parseInt(document.getElementById('s-missedDelayMin').value, 10) || 120,
+      dailySummaryTime: document.getElementById('s-dailySummaryTime').value || '21:00',
+      theme: document.getElementById('s-theme').value,
+      medFormat: document.getElementById('s-medFormat').value,
+      soundType: document.getElementById('s-soundType').value,
+      alarmBanner: document.getElementById('s-alarmBanner').value,
+      snoozeMin: parseInt(document.getElementById('s-snoozeMin').value, 10) || 10
+    };
+    state.config = Object.assign({}, state.config, payload);
+    if (keepEditView) {
+      document.body.classList.toggle('dark', payload.theme === 'dark');
+    }
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (cfg) {
+        state.config = cfg;
+        loadPhotos();
+        loadAvatars();
+        showToast('Saved');
+      }).apiSaveConfig(payload);
+    }
+  }
+
+  function triggerCall(who, customUrl) {
+    unlockAudio();
+    var label = who ? (who.charAt(0).toUpperCase() + who.slice(1)) : 'Tom';
+    showToast('Calling ' + label + '…');
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (res) {
+        if (res && res.meetUrl) {
+          window.open(res.meetUrl, '_blank');
+        } else {
+          showToast('Alert sent to ' + label + ' (add Meet URL in Settings)');
+        }
+      }).apiNotifyCall(who, customUrl || '');
+    }
+  }
+
+  function onMedTap(e) {
+    unlockAudio();
+    var medId = e.currentTarget.getAttribute('data-med-id');
+    if (!medId) return;
+    var prev = state.todayLogs[medId];
+    var now = new Date();
+    if (prev) delete state.todayLogs[medId];
+    else state.todayLogs[medId] = {
+      takenAt: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
+      ts: now.getTime()
+    };
+    render();
+
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.todayLogs) {
+            var nextSig = canonicalJson(res.todayLogs);
+            var curSig = canonicalJson(state.todayLogs);
+            state.todayLogs = res.todayLogs;
+            state.todayKey = res.todayKey;
+            lastStateSig = computeStateSig(state);
+            if (nextSig !== curSig) render();
+          }
+        })
+        .withFailureHandler(function () {
+          if (prev) state.todayLogs[medId] = prev;
+          else delete state.todayLogs[medId];
+          render();
+          showToast('Could not save — please tap again');
+        })
+        .apiToggleDose(medId, state.todayKey);
+    }
+  }
+
+  function loadPhotos() {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (list) {
+        state.photos = list || [];
+        if (state.view === 'photos') render();
+      }).apiGetPhotos();
+    }
+  }
+
+  function loadAvatars() {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (map) {
+        var next = map || {};
+        if (JSON.stringify(next) === JSON.stringify(state.avatarMap)) return;
+        state.avatarMap = next;
+        if (state.view === 'meds' || state.view === 'call') render();
+      }).apiGetAvatars();
+    }
+  }
+
+  function loadVideos() {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (list) {
+        var next = list || [];
+        if (JSON.stringify(next) === JSON.stringify(state.videos)) return;
+        state.videos = next;
+        if (state.view === 'meds' || state.view === 'photos') render();
+      }).apiGetVideos();
+    }
+  }
+
+  function loadState() {
+    if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function (res) {
+        if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
+        var sig = computeStateSig(res);
+        if (sig === lastStateSig) return;
+        applyStateResponse(res);
+        render();
+      }).apiGetState();
+    } else {
+      render();
+    }
+  }
+
+  function tickClock() {
+    if (state.view === 'edit' || state.view === 'settings' || state.todoPopupOpen) return;
+    var now = new Date();
+    var geneView = computePersonView('gene', now);
+    var peggyView = computePersonView('peggy', now);
+    var dueIds = [];
+    geneView.dueSlots.forEach(function (d) { dueIds.push('g:' + d.slot.id); });
+    peggyView.dueSlots.forEach(function (d) { dueIds.push('p:' + d.slot.id); });
+    var dueKey = dueIds.join(',');
+    var shouldBeMeds = !!dueKey && !(state.manualView === 'photos' && state.dismissedDueKey === dueKey);
+    if ((shouldBeMeds && state.view === 'photos') || (!shouldBeMeds && state.view === 'meds' && state.manualView !== 'meds')) {
+      render();
+      return;
+    }
+    var clk = document.querySelector('.top .clock, .ph-clock .time');
+    var nextClk = formatClock(now);
+    if (clk && clk.textContent !== nextClk) clk.textContent = nextClk;
+    var dy = document.querySelector('.top .day, .ph-clock .date');
+    var nextDy = formatDateLine(now);
+    if (dy && dy.textContent !== nextDy) dy.textContent = nextDy;
+  }
+
+  loadState();
+  loadPhotos();
+  loadVideos();
+  loadAvatars();
+  requestWakeLock();
+  setInterval(tickClock, 15000);
+  setInterval(function () {
+    if (state.view === 'photos' && state.photos.length > 1) {
+      state.photoIdx = (state.photoIdx + 1) % state.photos.length;
+      render();
+    }
+  }, 15000);
+  setInterval(loadState, 300000);
+  setInterval(loadPhotos, 300000);
+  setInterval(loadVideos, 300000);
+})();
+</script>
+
+</body>
+</html>
