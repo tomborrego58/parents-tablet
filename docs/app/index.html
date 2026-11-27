@@ -1365,11 +1365,8 @@
       else laterSlots.push(entry);
     });
 
-    var visibleSlots = dueSlots.slice();
-    var remainingLater = laterSlots.slice();
-    if (!visibleSlots.length && remainingLater.length) {
-      visibleSlots.push(remainingLater.shift());
-    }
+    var visibleSlots = dueSlots.concat(laterSlots);
+    var remainingLater = [];
 
     return {
       doneSlots: doneSlots,
