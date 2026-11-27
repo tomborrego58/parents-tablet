@@ -42,6 +42,7 @@
   var toastTimer = null;
   var audioCtx = null;
   var wakeLockObj = null;
+  var lastStateSig = '';
 
   function requestWakeLock() {
     try {
@@ -1019,6 +1020,8 @@
   }
 
   function render() {
+    var scrollSaved = [];
+    document.querySelectorAll('.col').forEach(function (c) { scrollSaved.push(c.scrollTop); });
     document.body.classList.toggle('dark', !!(state.config && state.config.theme === 'dark'));
     var now = new Date();
     var geneView = computePersonView('gene', now);
@@ -1069,6 +1072,10 @@
     }
 
     bindEvents(dueKey);
+    var colsNow = document.querySelectorAll('.col');
+    scrollSaved.forEach(function (st, idx) {
+      if (colsNow[idx]) colsNow[idx].scrollTop = st;
+    });
   }
 
   function syncFormInputs() {
@@ -1815,7 +1822,9 @@
   function loadAvatars() {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (map) {
-        state.avatarMap = map || {};
+        var next = map || {};
+        if (JSON.stringify(next) === JSON.stringify(state.avatarMap)) return;
+        state.avatarMap = next;
         if (state.view === 'meds' || state.view === 'call') render();
       }).apiGetAvatars();
     }
@@ -1824,7 +1833,9 @@
   function loadVideos() {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (list) {
-        state.videos = list || [];
+        var next = list || [];
+        if (JSON.stringify(next) === JSON.stringify(state.videos)) return;
+        state.videos = next;
         if (state.view === 'meds' || state.view === 'photos') render();
       }).apiGetVideos();
     }
@@ -1835,6 +1846,9 @@
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (res) {
         if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
+        var sig = JSON.stringify({ s: res && res.slots, m: res && res.meds, l: res && res.todayLogs, c: res && res.config, t: res && res.todos });
+        if (sig === lastStateSig) return;
+        lastStateSig = sig;
         applyStateResponse(res);
         render();
       }).apiGetState();
@@ -1843,14 +1857,32 @@
     }
   }
 
+  function tickClock() {
+    if (state.view === 'edit' || state.view === 'settings' || state.todoPopupOpen) return;
+    var now = new Date();
+    var geneView = computePersonView('gene', now);
+    var peggyView = computePersonView('peggy', now);
+    var dueIds = [];
+    geneView.dueSlots.forEach(function (d) { dueIds.push('g:' + d.slot.id); });
+    peggyView.dueSlots.forEach(function (d) { dueIds.push('p:' + d.slot.id); });
+    var dueKey = dueIds.join(',');
+    var shouldBeMeds = !!dueKey && !(state.manualView === 'photos' && state.dismissedDueKey === dueKey);
+    if ((shouldBeMeds && state.view === 'photos') || (!shouldBeMeds && state.view === 'meds' && state.manualView !== 'meds')) {
+      render();
+      return;
+    }
+    var clk = document.querySelector('.top .clock, .ph-clock .time');
+    if (clk) clk.textContent = formatClock(now);
+    var dy = document.querySelector('.top .day, .ph-clock .date');
+    if (dy) dy.textContent = formatDateLine(now);
+  }
+
   loadState();
   loadPhotos();
   loadVideos();
   loadAvatars();
   requestWakeLock();
-  setInterval(function () {
-    if (state.view !== 'edit' && state.view !== 'settings' && !state.todoPopupOpen) render();
-  }, 15000);
+  setInterval(tickClock, 15000);
   setInterval(function () {
     if (state.view === 'photos' && state.photos.length > 1) {
       state.photoIdx = (state.photoIdx + 1) % state.photos.length;
