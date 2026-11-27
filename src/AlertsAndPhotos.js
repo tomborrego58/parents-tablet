@@ -167,6 +167,44 @@ function extractDriveFolderId_(raw) {
   return s;
 }
 
+function shuffleArray_(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function sampleFolderImages_(folder, albumName, cap, deadlineMs) {
+  var sampled = [];
+  var seen = 0;
+  var files = folder.getFiles();
+  while (files.hasNext()) {
+    if (Date.now() > deadlineMs) break;
+    var f = files.next();
+    var mime = f.getMimeType() || '';
+    if (mime.indexOf('image/') !== 0) continue;
+    seen++;
+    if (sampled.length < cap) {
+      sampled.push(f);
+    } else {
+      var r = Math.floor(Math.random() * seen);
+      if (r < cap) sampled[r] = f;
+    }
+  }
+  return sampled.map(function (f) {
+    var id = f.getId();
+    return {
+      id: id,
+      name: f.getName(),
+      album: albumName,
+      url: 'https://lh3.googleusercontent.com/d/' + id + '=w1600'
+    };
+  });
+}
+
 function getDrivePhotos() {
   var props = getProps_();
   var cfg = getConfig_(props);
@@ -174,6 +212,7 @@ function getDrivePhotos() {
   if (!folderId || typeof DriveApp === 'undefined') return [];
 
   try {
+    var deadlineMs = Date.now() + 12000;
     var folder = DriveApp.getFolderById(folderId);
     var out = [];
     var subs = [];
@@ -188,42 +227,17 @@ function getDrivePhotos() {
     if (subs.length > 0) {
       var perSubCap = Math.max(40, Math.floor(350 / subs.length));
       for (var i = 0; i < subs.length && out.length < 500; i++) {
-        var sub = subs[i];
-        var albumName = sub.getName();
-        var subFiles = sub.getFiles();
-        var count = 0;
-        while (subFiles.hasNext() && count < perSubCap && out.length < 500) {
-          var sf = subFiles.next();
-          var smime = sf.getMimeType() || '';
-          if (smime.indexOf('image/') === 0) {
-            var sid = sf.getId();
-            out.push({
-              id: sid,
-              name: sf.getName(),
-              album: albumName,
-              url: 'https://lh3.googleusercontent.com/d/' + sid + '=w1600'
-            });
-            count++;
-          }
-        }
+        var remaining = 500 - out.length;
+        var items = sampleFolderImages_(subs[i], subs[i].getName(), Math.min(perSubCap, remaining), deadlineMs);
+        out = out.concat(items);
       }
     }
 
-    var files = folder.getFiles();
-    while (files.hasNext() && out.length < 500) {
-      var f = files.next();
-      var mime = f.getMimeType() || '';
-      if (mime.indexOf('image/') === 0) {
-        var id = f.getId();
-        out.push({
-          id: id,
-          name: f.getName(),
-          album: '',
-          url: 'https://lh3.googleusercontent.com/d/' + id + '=w1600'
-        });
-      }
+    if (out.length < 500) {
+      var rootItems = sampleFolderImages_(folder, '', 500 - out.length, deadlineMs);
+      out = out.concat(rootItems);
     }
-    return out;
+    return shuffleArray_(out);
   } catch (e) {
     return [];
   }

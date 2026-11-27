@@ -1242,6 +1242,21 @@
   var photoTimer = null;
   var lastPhotoCycleSec = 6;
 
+  function shufflePhotos(arr) {
+    var copy = (arr || []).slice();
+    for (var i = copy.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = copy[i];
+      copy[i] = copy[j];
+      copy[j] = tmp;
+    }
+    return copy;
+  }
+
+  function photoListKey(arr) {
+    return (arr || []).map(function (p) { return (p && p.id || '') + '|' + (p && p.album || ''); }).sort().join(',');
+  }
+
   function getPhotoCycleSec() {
     var sec = parseInt((state.config && state.config.photoCycleSec) || 6, 10);
     return Math.max(2, Math.min(120, isNaN(sec) ? 6 : sec));
@@ -2485,6 +2500,7 @@
     document.querySelectorAll('.ph-album-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         state.photoAlbum = btn.getAttribute('data-album') || '';
+        state.photos = shufflePhotos(state.photos);
         state.photoIdx = 0;
         state.photoPaused = false;
         resetPhotoTimer();
@@ -3156,7 +3172,10 @@
   function loadPhotos() {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (list) {
-        state.photos = list || [];
+        var next = list || [];
+        if (state.photos.length > 0 && photoListKey(next) === photoListKey(state.photos)) return;
+        state.photos = shufflePhotos(next);
+        state.photoIdx = 0;
         if (state.view === 'photos') render();
       }).apiGetPhotos();
     }
