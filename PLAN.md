@@ -60,14 +60,14 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
   - Gene's and Peggy's real med lists are entered through the Edit Meds form (or local-only loader). They never go in GitHub.
 - [x] **1. Tablet cleanup guide:** debloated Galaxy Tab A11+ with ADB and set privacy settings (`docs/TABLET-CLEANUP.md`)
 - [x] **3. Alarms and missed-dose emails:** gentle chime (1 repeat), per-person blue/purple due-slot outlines on white, quiet hours 9pm–8am, missed-dose email after 2h, 9pm daily summary, configurable Settings
-- [x] **4. Photo slideshow:** Drive folder slideshow + email-to-Drive auto-import
+- [x] **4. Photo slideshow:** Drive folder slideshow (up to 500 photos, cookie-free `lh3` URLs + 6 MB server-side fallback) + email-to-Drive auto-import — verified live on tablet
 - [x] **5. Call buttons:** Call page with server-side Drive avatar thumbnails, Google Voice (`tel:`) + Google Meet app (`intent:`) buttons per contact, plus `New` Phone dialpad / Video email modal
-- [x] **6. Tablet setup and handover:** Fully Kiosk Browser PLUS configured (fullscreen, `Keep Screen On`, `Launch on Boot`, `Open Other URL Schemes`, `Voice` + `Meet` whitelisted, Android `○` Home returns straight to Parents' Tablet) (`docs/HANDOVER.md`)
+- [x] **6. Tablet setup and handover:** Fully Kiosk Browser PLUS running banner-free **2B GitHub Pages** frontend (`docs/app/index.html`, zero Google Apps Script banner, all med slots shown all the time, fullscreen, `Keep Screen On`, `Launch on Boot`, `Open Other URL Schemes`, `Voice` + `Meet` whitelisted, Android `○` Home returns straight to Parents' Tablet) (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Enable **GitHub Pages** (`Settings → Pages → main / docs`) — note: free GitHub Pages requires a public repo (zero secrets, emails, URLs, or health data are in this repo) or GitHub Pro. Then set Fully Kiosk **Start URL** to `https://tomborrego58.github.io/parents-tablet/app/?api=<WEB_APP_URL>`.
+1. Upload exported Google Takeout family photos into `Parent Tablet Pics` Drive folder (and optionally create/link a `Parents Tablet Videos` folder + add Doctor phone in **⚙️ Settings**).
 2. Make 1-time Google Meet calls on the tablet to Tom, Katie, Laura, and Matt so they stay pinned on Meet's main screen.
-3. Paste Drive Photo/Video folder URLs (and Doctor phone when ready) in **⚙️ Settings** if not yet set.
+3. Print the 1-page "How to Use Your Tablet" sheet from `docs/HANDOVER.md` for Gene & Peggy.
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
@@ -102,6 +102,6 @@ Everything used is **free** except **Fully Kiosk Browser PLUS** (~US$9 one-time,
 
 ## Open decisions / extras
 - **Reconsider later:** Web App access is currently set to **Anyone** (so it opens cleanly on tablet + phone); revisit locking down to **Only myself** later.
-- **Apps Script top banner (2A → 2B planned next):** Kept `/exec` for now; switching to **2B (GitHub Pages frontend)** next will remove the Google top banner AND unlock the in-app `🎤 Voice` button (currently blocked by Apps Script's iframe).
 - **Tablet auto-updates (revisit later):** Consider turning off automatic Android OS updates/reboots on the Galaxy Tab A11+ so overnight reboots don't interrupt kiosk mode.
-- **Settings links remaining:** Add Doctor phone number and Drive Photo/Video folder URLs in **⚙️ Settings** when ready.
+- **Optional slideshow shuffle:** Consider shuffling the 500-photo slideshow order once the full Takeout album is uploaded.
+- **Settings links remaining:** Add Doctor phone number and optional Video Messages Drive folder URL in **⚙️ Settings** when ready.
