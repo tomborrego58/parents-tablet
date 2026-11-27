@@ -771,6 +771,76 @@
     text-align: center;
     padding: 0 32px;
   }
+  .ph-albums {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .ph-album-btn {
+    pointer-events: auto;
+    border: 2px solid rgba(255, 255, 255, 0.65);
+    background: rgba(15, 23, 42, 0.72);
+    color: #fff;
+    font-size: 20px;
+    font-weight: 800;
+    padding: 8px 18px;
+    border-radius: 999px;
+    min-height: 46px;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
+  .ph-album-btn.active {
+    background: #1d4ed8;
+    border-color: #fde047;
+    color: #fff;
+  }
+  .ph-controls {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    z-index: 3;
+  }
+  .ph-ctrl-btn {
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+    padding: 10px 22px;
+    border-radius: 999px;
+    min-height: 52px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ph-ctrl-btn:active { background: rgba(255, 255, 255, 0.32); }
+  .ph-ctrl-btn.paused {
+    background: #16a34a;
+    border-color: #bbf7d0;
+    color: #fff;
+  }
+  .ph-count {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 18px;
+    font-weight: 700;
+    padding: 0 6px;
+    white-space: nowrap;
+  }
   .ph-clock {
     position: absolute;
     top: 22px;
@@ -1147,6 +1217,8 @@
     todoDraft: '',
     isListening: false,
     photoIdx: 0,
+    photoPaused: false,
+    photoAlbum: '',
     view: 'photos',        // 'photos' | 'meds' | 'edit'
     editTab: 'list',       // 'list' | 'form' | 'history' | 'settings'
     editMed: null,
@@ -1167,6 +1239,47 @@
   var audioCtx = null;
   var wakeLockObj = null;
   var lastStateSig = '';
+  var photoTimer = null;
+  var lastPhotoCycleSec = 6;
+
+  function getPhotoCycleSec() {
+    var sec = parseInt((state.config && state.config.photoCycleSec) || 6, 10);
+    return Math.max(2, Math.min(120, isNaN(sec) ? 6 : sec));
+  }
+
+  function getPhotoAlbums() {
+    var seen = {};
+    var out = [];
+    (state.photos || []).forEach(function (p) {
+      if (p && p.album && !seen[p.album]) {
+        seen[p.album] = true;
+        out.push(p.album);
+      }
+    });
+    out.sort();
+    return out;
+  }
+
+  function getFilteredPhotos() {
+    var list = state.photos || [];
+    if (!state.photoAlbum) return list;
+    return list.filter(function (p) { return p && p.album === state.photoAlbum; });
+  }
+
+  function resetPhotoTimer() {
+    if (photoTimer) clearInterval(photoTimer);
+    var sec = getPhotoCycleSec();
+    lastPhotoCycleSec = sec;
+    photoTimer = setInterval(function () {
+      if (state.view === 'photos' && !state.photoPaused) {
+        var list = getFilteredPhotos();
+        if (list.length > 1) {
+          state.photoIdx = (state.photoIdx + 1) % list.length;
+          render();
+        }
+      }
+    }, sec * 1000);
+  }
 
   function requestWakeLock() {
     try {
@@ -1740,6 +1853,7 @@
         '</div>' +
         '<div class="settings-col">' +
           '<div class="lbl">Drive Photo Folder URL / ID</div><input class="field" id="s-driveFolderId" value="' + esc(c.driveFolderId) + '">' +
+          '<div class="lbl">Picture Cycle Time (seconds)</div><input class="field" id="s-photoCycleSec" type="number" min="2" max="120" value="' + esc(c.photoCycleSec || 6) + '">' +
           '<div class="lbl">Optional Text Gateway Email</div><input class="field" id="s-smsGatewayEmail" value="' + esc(c.smsGatewayEmail) + '">' +
         '</div>' +
       '</div>' +
@@ -2157,11 +2271,32 @@
     if (state.view === 'edit') {
       app.innerHTML = renderEditScreen();
     } else if (state.view === 'photos') {
-      var curPhoto = (state.photos && state.photos.length) ? state.photos[state.photoIdx % state.photos.length] : null;
+      var albums = getPhotoAlbums();
+      if (state.photoAlbum && albums.indexOf(state.photoAlbum) === -1) state.photoAlbum = '';
+      var filtered = getFilteredPhotos();
+      var safeIdx = filtered.length ? (((state.photoIdx % filtered.length) + filtered.length) % filtered.length) : 0;
+      var curPhoto = filtered.length ? filtered[safeIdx] : null;
       var photoSrc = curPhoto ? (curPhoto.dataUrl || curPhoto.url) : '';
       var photoHtml = curPhoto
         ? '<img class="ph-img" id="slideshow-img" data-photo-id="' + esc(curPhoto.id) + '" src="' + esc(photoSrc) + '" alt="Family photo">'
         : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in ⚙️ Settings</span></div>';
+      var albumsHtml = '';
+      if (albums.length > 0) {
+        albumsHtml = '<div class="ph-albums">' +
+          '<button type="button" class="ph-album-btn' + (!state.photoAlbum ? ' active' : '') + '" data-album="">All</button>' +
+          albums.map(function (a) {
+            return '<button type="button" class="ph-album-btn' + (state.photoAlbum === a ? ' active' : '') + '" data-album="' + esc(a) + '">' + esc(a) + '</button>';
+          }).join('') +
+        '</div>';
+      }
+      var controlsHtml = filtered.length > 0
+        ? '<div class="ph-controls">' +
+            '<button type="button" class="ph-ctrl-btn" id="btn-ph-prev">◀ Back</button>' +
+            '<button type="button" class="ph-ctrl-btn' + (state.photoPaused ? ' paused' : '') + '" id="btn-ph-pause">' + (state.photoPaused ? '▶ Play' : '⏸ Pause') + '</button>' +
+            '<button type="button" class="ph-ctrl-btn" id="btn-ph-next">Next ▶</button>' +
+            '<span class="ph-count">' + (safeIdx + 1) + ' / ' + filtered.length + '</span>' +
+          '</div>'
+        : '';
 
       app.innerHTML =
         '<div class="screen-meds">' +
@@ -2170,6 +2305,8 @@
           renderVideoBanner() +
           '<div class="screen-photos">' +
             photoHtml +
+            albumsHtml +
+            controlsHtml +
           '</div>' +
           renderVideoModal() +
         '</div>';
@@ -2242,7 +2379,10 @@
     state.meds = res.meds || [];
     state.todayLogs = res.todayLogs || {};
     state.todayKey = res.todayKey || '';
-    if (res.config) state.config = res.config;
+    if (res.config) {
+      state.config = res.config;
+      if (getPhotoCycleSec() !== lastPhotoCycleSec) resetPhotoTimer();
+    }
     if (res.history) state.history = res.history;
     if (res.todos) state.todos = res.todos;
     if (res.notes) state.notes = res.notes;
@@ -2316,6 +2456,41 @@
         }
       });
     }
+
+    var phPrev = document.getElementById('btn-ph-prev');
+    if (phPrev) phPrev.addEventListener('click', function () {
+      var list = getFilteredPhotos();
+      if (!list.length) return;
+      state.photoIdx = ((state.photoIdx - 1) % list.length + list.length) % list.length;
+      resetPhotoTimer();
+      render();
+    });
+
+    var phNext = document.getElementById('btn-ph-next');
+    if (phNext) phNext.addEventListener('click', function () {
+      var list = getFilteredPhotos();
+      if (!list.length) return;
+      state.photoIdx = (state.photoIdx + 1) % list.length;
+      resetPhotoTimer();
+      render();
+    });
+
+    var phPause = document.getElementById('btn-ph-pause');
+    if (phPause) phPause.addEventListener('click', function () {
+      state.photoPaused = !state.photoPaused;
+      resetPhotoTimer();
+      render();
+    });
+
+    document.querySelectorAll('.ph-album-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.photoAlbum = btn.getAttribute('data-album') || '';
+        state.photoIdx = 0;
+        state.photoPaused = false;
+        resetPhotoTimer();
+        render();
+      });
+    });
 
     var unlockEl = document.getElementById('btn-unlock-sound');
     if (unlockEl) unlockEl.addEventListener('click', function () { unlockAudio(); render(); showToast('Sound enabled'); });
@@ -2894,6 +3069,7 @@
       smsGatewayEmail: document.getElementById('s-smsGatewayEmail').value.trim(),
       katieEmail: document.getElementById('s-katieEmail').value.trim(),
       driveFolderId: document.getElementById('s-driveFolderId').value.trim(),
+      photoCycleSec: Math.max(2, Math.min(120, parseInt(document.getElementById('s-photoCycleSec').value, 10) || 6)),
       videoFolderId: document.getElementById('s-videoFolderId').value.trim(),
       doctorName: document.getElementById('s-doctorName').value.trim(),
       doctorPhone: document.getElementById('s-doctorPhone').value.trim(),
@@ -2913,6 +3089,7 @@
       snoozeMin: parseInt(document.getElementById('s-snoozeMin').value, 10) || 10
     };
     state.config = Object.assign({}, state.config, payload);
+    resetPhotoTimer();
     if (keepEditView) {
       document.body.classList.toggle('dark', payload.theme === 'dark');
     }
@@ -3050,12 +3227,7 @@
   loadAvatars();
   requestWakeLock();
   setInterval(tickClock, 15000);
-  setInterval(function () {
-    if (state.view === 'photos' && state.photos.length > 1) {
-      state.photoIdx = (state.photoIdx + 1) % state.photos.length;
-      render();
-    }
-  }, 15000);
+  resetPhotoTimer();
   setInterval(loadState, 300000);
   setInterval(loadPhotos, 300000);
   setInterval(loadVideos, 300000);

@@ -41,7 +41,8 @@ function getDefaultConfig_() {
     snoozeMin: 10,
     dailySummaryTime: '21:00',
     theme: 'light',
-    medFormat: 'qty_first'
+    medFormat: 'qty_first',
+    photoCycleSec: 6
   };
 }
 
@@ -129,6 +130,7 @@ function saveConfig(configInput, nowOpt) {
   cur.missedDelayMin = Math.max(15, parseInt(cur.missedDelayMin, 10) || 120);
   cur.soundRepeat = Math.max(0, Math.min(5, parseInt(cur.soundRepeat, 10) || 1));
   cur.snoozeMin = Math.max(1, Math.min(60, parseInt(cur.snoozeMin, 10) || 10));
+  cur.photoCycleSec = Math.max(2, Math.min(120, parseInt(cur.photoCycleSec, 10) || 6));
   if (!cur.dailySummaryTime || String(cur.dailySummaryTime).indexOf(':') === -1) {
     cur.dailySummaryTime = '21:00';
   }
