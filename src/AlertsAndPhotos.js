@@ -177,7 +177,7 @@ function getDrivePhotos() {
     var folder = DriveApp.getFolderById(folderId);
     var files = folder.getFiles();
     var out = [];
-    while (files.hasNext() && out.length < 100) {
+    while (files.hasNext() && out.length < 500) {
       var f = files.next();
       var mime = f.getMimeType() || '';
       if (mime.indexOf('image/') === 0) {
@@ -185,7 +185,7 @@ function getDrivePhotos() {
         out.push({
           id: id,
           name: f.getName(),
-          url: 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1600'
+          url: 'https://lh3.googleusercontent.com/d/' + id + '=w1600'
         });
       }
     }
@@ -193,6 +193,34 @@ function getDrivePhotos() {
   } catch (e) {
     return [];
   }
+}
+
+function getPhotoDataUrl(fileId) {
+  if (!fileId || typeof Utilities === 'undefined') return '';
+  try {
+    if (typeof UrlFetchApp !== 'undefined' && typeof ScriptApp !== 'undefined') {
+      var resp = UrlFetchApp.fetch('https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w1280', {
+        headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+        muteHttpExceptions: true
+      });
+      if (resp.getResponseCode() === 200) {
+        var tb = resp.getBlob();
+        var ct = tb.getContentType() || 'image/jpeg';
+        if (ct.indexOf('image/') === 0) {
+          return 'data:' + ct + ';base64,' + Utilities.base64Encode(tb.getBytes());
+        }
+      }
+    }
+    if (typeof DriveApp !== 'undefined') {
+      var blob = DriveApp.getFileById(fileId).getBlob();
+      var mime = blob.getContentType() || 'image/jpeg';
+      var b64 = Utilities.base64Encode(blob.getBytes());
+      if (b64.length < 2500000) {
+        return 'data:' + mime + ';base64,' + b64;
+      }
+    }
+  } catch (e) {}
+  return '';
 }
 
 function getDriveVideos() {
