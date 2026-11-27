@@ -1034,8 +1034,10 @@
     if (state.view === 'edit') {
       app.innerHTML = renderEditScreen();
     } else if (state.view === 'photos') {
-      var photoHtml = (state.photos && state.photos.length)
-        ? '<img class="ph-img" src="' + esc(state.photos[state.photoIdx % state.photos.length].url) + '" alt="Family photo">'
+      var curPhoto = (state.photos && state.photos.length) ? state.photos[state.photoIdx % state.photos.length] : null;
+      var photoSrc = curPhoto ? (curPhoto.dataUrl || curPhoto.url) : '';
+      var photoHtml = curPhoto
+        ? '<img class="ph-img" id="slideshow-img" data-photo-id="' + esc(curPhoto.id) + '" src="' + esc(photoSrc) + '" alt="Family photo">'
         : '<div class="ph-label">Family photo slideshow<br><span style="font-size:22px;font-weight:600;opacity:.85">Add Drive folder in ⚙️ Settings</span></div>';
 
       app.innerHTML =
@@ -1174,6 +1176,24 @@
         }
       });
     });
+
+    var slideImg = document.getElementById('slideshow-img');
+    if (slideImg) {
+      slideImg.addEventListener('error', function () {
+        var pid = slideImg.getAttribute('data-photo-id');
+        if (!pid || slideImg.getAttribute('data-fallback-tried')) return;
+        slideImg.setAttribute('data-fallback-tried', '1');
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run.withSuccessHandler(function (dataUrl) {
+            if (!dataUrl) return;
+            var found = state.photos.find(function (p) { return p.id === pid; });
+            if (found) found.dataUrl = dataUrl;
+            var cur = document.getElementById('slideshow-img');
+            if (cur && cur.getAttribute('data-photo-id') === pid) cur.src = dataUrl;
+          }).apiGetPhotoData(pid);
+        }
+      });
+    }
 
     var unlockEl = document.getElementById('btn-unlock-sound');
     if (unlockEl) unlockEl.addEventListener('click', function () { unlockAudio(); render(); showToast('Sound enabled'); });

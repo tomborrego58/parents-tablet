@@ -50,7 +50,7 @@ const shim = `<script>
   var METHODS = [
     'apiGetState', 'apiToggleDose', 'apiClearPersonLogs', 'apiSaveMed',
     'apiDeleteMed', 'apiSaveSlot', 'apiUndoHistory', 'apiSaveConfig',
-    'apiGetPhotos', 'apiNotifyCall', 'apiSaveTodos', 'apiSaveNotes',
+    'apiGetPhotos', 'apiGetPhotoData', 'apiNotifyCall', 'apiSaveTodos', 'apiSaveNotes',
     'apiGetVideos', 'apiMarkVideoWatched', 'apiGetAvatars'
   ];
 

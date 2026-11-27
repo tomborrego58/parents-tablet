@@ -40,6 +40,7 @@ function dispatchApi_(action, args) {
     case 'apiUndoHistory': return apiUndoHistory(a[0]);
     case 'apiSaveConfig': return apiSaveConfig(a[0]);
     case 'apiGetPhotos': return apiGetPhotos();
+    case 'apiGetPhotoData': return apiGetPhotoData(a[0]);
     case 'apiNotifyCall': return apiNotifyCall(a[0], a[1]);
     case 'apiSaveTodos': return apiSaveTodos(a[0]);
     case 'apiSaveNotes': return apiSaveNotes(a[0]);
@@ -97,6 +98,10 @@ function apiSaveConfig(configInput) {
 
 function apiGetPhotos() {
   return getDrivePhotos();
+}
+
+function apiGetPhotoData(fileId) {
+  return getPhotoDataUrl(fileId);
 }
 
 function apiNotifyCall(who, customUrl) {

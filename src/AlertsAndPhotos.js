@@ -195,6 +195,34 @@ function getDrivePhotos() {
   }
 }
 
+function getPhotoDataUrl(fileId) {
+  if (!fileId || typeof Utilities === 'undefined') return '';
+  try {
+    if (typeof UrlFetchApp !== 'undefined' && typeof ScriptApp !== 'undefined') {
+      var resp = UrlFetchApp.fetch('https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w1280', {
+        headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+        muteHttpExceptions: true
+      });
+      if (resp.getResponseCode() === 200) {
+        var tb = resp.getBlob();
+        var ct = tb.getContentType() || 'image/jpeg';
+        if (ct.indexOf('image/') === 0) {
+          return 'data:' + ct + ';base64,' + Utilities.base64Encode(tb.getBytes());
+        }
+      }
+    }
+    if (typeof DriveApp !== 'undefined') {
+      var blob = DriveApp.getFileById(fileId).getBlob();
+      var mime = blob.getContentType() || 'image/jpeg';
+      var b64 = Utilities.base64Encode(blob.getBytes());
+      if (b64.length < 2500000) {
+        return 'data:' + mime + ';base64,' + b64;
+      }
+    }
+  } catch (e) {}
+  return '';
+}
+
 function getDriveVideos() {
   var props = getProps_();
   var cfg = getConfig_(props);
