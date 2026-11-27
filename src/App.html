@@ -1092,6 +1092,28 @@
     if (w) state.editMed.warning = w.value;
   }
 
+  function canonicalJson(val) {
+    if (Array.isArray(val)) return '[' + val.map(canonicalJson).join(',') + ']';
+    if (val && typeof val === 'object') {
+      return '{' + Object.keys(val).sort().map(function (k) {
+        return JSON.stringify(k) + ':' + canonicalJson(val[k]);
+      }).join(',') + '}';
+    }
+    return JSON.stringify(val);
+  }
+
+  function computeStateSig(src) {
+    if (!src) return '';
+    return canonicalJson({
+      s: src.slots || [],
+      m: src.meds || [],
+      l: src.todayLogs || {},
+      c: src.config || {},
+      t: src.todos || [],
+      n: src.notes || []
+    });
+  }
+
   function applyStateResponse(res) {
     if (!res) return;
     state.slots = res.slots || [];
@@ -1102,6 +1124,7 @@
     if (res.history) state.history = res.history;
     if (res.todos) state.todos = res.todos;
     if (res.notes) state.notes = res.notes;
+    lastStateSig = computeStateSig(state);
   }
 
   function updateScrollHints() {
@@ -1795,9 +1818,12 @@
       google.script.run
         .withSuccessHandler(function (res) {
           if (res && res.todayLogs) {
+            var nextSig = canonicalJson(res.todayLogs);
+            var curSig = canonicalJson(state.todayLogs);
             state.todayLogs = res.todayLogs;
             state.todayKey = res.todayKey;
-            render();
+            lastStateSig = computeStateSig(state);
+            if (nextSig !== curSig) render();
           }
         })
         .withFailureHandler(function () {
@@ -1846,9 +1872,8 @@
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (res) {
         if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
-        var sig = JSON.stringify({ s: res && res.slots, m: res && res.meds, l: res && res.todayLogs, c: res && res.config, t: res && res.todos });
+        var sig = computeStateSig(res);
         if (sig === lastStateSig) return;
-        lastStateSig = sig;
         applyStateResponse(res);
         render();
       }).apiGetState();
@@ -1872,9 +1897,11 @@
       return;
     }
     var clk = document.querySelector('.top .clock, .ph-clock .time');
-    if (clk) clk.textContent = formatClock(now);
+    var nextClk = formatClock(now);
+    if (clk && clk.textContent !== nextClk) clk.textContent = nextClk;
     var dy = document.querySelector('.top .day, .ph-clock .date');
-    if (dy) dy.textContent = formatDateLine(now);
+    var nextDy = formatDateLine(now);
+    if (dy && dy.textContent !== nextDy) dy.textContent = nextDy;
   }
 
   loadState();
@@ -1889,7 +1916,7 @@
       render();
     }
   }, 15000);
-  setInterval(loadState, 60000);
+  setInterval(loadState, 300000);
   setInterval(loadPhotos, 300000);
   setInterval(loadVideos, 300000);
 })();

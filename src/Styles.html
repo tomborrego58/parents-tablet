@@ -1,6 +1,6 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  html, body, #app { height: 100%; }
   body {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     background: #241773;
@@ -22,7 +22,7 @@
 
   /* Shared Top & Bottom Bars */
   .screen-meds, .screen-edit {
-    height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -30,6 +30,7 @@
   .top {
     height: 54px;
     flex: none;
+    contain: content;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -454,6 +455,8 @@
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
+    transform: translateZ(0);
+    backface-visibility: hidden;
     background: #fff;
     color: #1b1b1b;
     border-radius: 20px;
@@ -636,17 +639,20 @@
     font-weight: 700;
   }
   .slot-due-box {
-    background: #fff4d6;
-    border: 3px solid #e0b100;
+    background: #fff;
+    border: 3px solid #2f5fb3;
     border-radius: 14px;
     padding: 8px 12px;
     margin: 8px 0;
   }
+  .gene .slot-due-box { border-color: #2f5fb3; }
+  .peggy .slot-due-box { border-color: #8a3fa8; }
   .slot-due-box .slot { margin-top: 2px; }
   body.dark .slot-due-box {
-    background: #2d2300;
-    border-color: #ffd34d;
+    background: transparent;
   }
+  body.dark .gene .slot-due-box { border-color: #4f86f7; }
+  body.dark .peggy .slot-due-box { border-color: #a855f7; }
   .slot {
     font-size: 26px;
     font-weight: 800;

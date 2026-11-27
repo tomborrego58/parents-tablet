@@ -52,23 +52,22 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [x] **0. Plan agreed** (merged 2026-11-22)
 - [x] **2. Meds screen**
   - [x] Home screen mockups made (`docs/mockups/`). Tom chose **C+A**: photos full screen most of the day, and the screen switches to the meds lists by itself when meds are due, then back to photos once everything is ticked. **No chime** on the switch unless it's part of the normal alarm.
-  - [ ] Build (4 small PRs, in order; plan agreed by Tom 2026-11-22):
+  - [x] Build (4 small PRs, in order; plan agreed by Tom 2026-11-22):
     - [x] **2a. Setup:** Apps Script project in the tablet's Google account, linked to this repo with clasp. Tom: make the tablet Google account and run one clasp login on his PC (Claude walks him through it).
     - [x] **2b. Data and screens:** med storage, today's lists with check boxes, wait timers, C+A home screen.
     - [x] **2c. Edit Meds (no PIN):** list, form, editable slot times, delete check, email to Tom on every change.
     - [x] **2d. History and cleanup:** history with Undo, 90-day cleanup.
   - Gene's and Peggy's real med lists are entered through the Edit Meds form (or local-only loader). They never go in GitHub.
-- [x] **1. Tablet cleanup guide:** debloat with ADB and set privacy settings (`docs/TABLET-CLEANUP.md`)
-- [x] **3. Alarms and missed-dose emails:** gentle chime (1 repeat), Snooze 10 min, quiet hours 9pm–8am, missed-dose email after 2h, 9pm daily summary, configurable Settings
+- [x] **1. Tablet cleanup guide:** debloated Galaxy Tab A11+ with ADB and set privacy settings (`docs/TABLET-CLEANUP.md`)
+- [x] **3. Alarms and missed-dose emails:** gentle chime (1 repeat), per-person blue/purple due-slot outlines on white, quiet hours 9pm–8am, missed-dose email after 2h, 9pm daily summary, configurable Settings
 - [x] **4. Photo slideshow:** Drive folder slideshow + email-to-Drive auto-import
-- [x] **5. Call buttons:** Call Tom & Call Katie fixed Meet links + instant email alerts
-- [x] **6. Tablet setup and handover:** always-on screen, app pinning, 1-page "how to use it" sheet (`docs/HANDOVER.md`)
+- [x] **5. Call buttons:** Call page with server-side Drive avatar thumbnails, Google Voice (`tel:`) + Google Meet app (`intent:`) buttons per contact, plus `New` Phone dialpad / Video email modal
+- [x] **6. Tablet setup and handover:** Fully Kiosk Browser PLUS configured (fullscreen, `Keep Screen On`, `Launch on Boot`, `Open Other URL Schemes`, `Voice` + `Meet` whitelisted, Android `○` Home returns straight to Parents' Tablet) (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Install **Fully Kiosk Browser** (~US$9 once, approved by Tom 2026-11-25) on Galaxy Tab A11+ to remove Chrome's URL/tab bar, hide Android's bottom bar, and auto-return to the app after Google Voice/Meet calls.
-2. Make 1-time Google Meet calls to Tom, Katie, Laura, and Matt so they stay on Meet's main screen.
-3. Build **2B (GitHub Pages frontend)** to remove the Apps Script top banner and unlock the in-app `🎤 Voice` button.
-4. Paste Drive Photo/Video folder URLs in **⚙️ Settings** if not yet set.
+1. Make 1-time Google Meet calls on the tablet to Tom, Katie, Laura, and Matt so they stay pinned on Meet's main screen.
+2. Paste Drive Photo/Video folder URLs (and Doctor phone when ready) in **⚙️ Settings** if not yet set.
+3. Build **2B (GitHub Pages frontend)** to remove the Google Apps Script top banner and unlock the in-app `🎤 Voice` button.
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
@@ -99,17 +98,10 @@ Every option must be easy for older adults. Pick the simplest defaults and keep 
 - Fonts must be bundled with the app (Inter is the mockup font; it's free to use).
 
 ## Costs
-Everything planned is **free**. An optional paid kiosk app (Fully Kiosk Browser, about US$9 once) would only be suggested if the free screen-pinning proves unreliable, and Tom would be asked first.
+Everything used is **free** except **Fully Kiosk Browser PLUS** (~US$9 one-time, approved and installed 2026-11-26).
 
 ## Open decisions / extras
 - **Reconsider later:** Web App access is currently set to **Anyone** (so it opens cleanly on tablet + phone); revisit locking down to **Only myself** later.
-- **Video messages inbox (1A):** Pop-up banner on Pictures & Meds + full-screen video player (configured via Video Messages Drive Folder in Settings).
-- **Call Doctor (3A):** Doctor Name & Phone in Settings + red Doctor button on Call page (`tel:`).
-- **Voice Smart To Do (4A):** Big 🎤 Voice button + Who pills (`Gene`, `Peggy`, `Tom`, `Katie`) + local date/time parser.
 - **Apps Script top banner (2A → 2B planned next):** Kept `/exec` for now; switching to **2B (GitHub Pages frontend)** next will remove the Google top banner AND unlock the in-app `🎤 Voice` button (currently blocked by Apps Script's iframe).
-- **Tablet auto-updates (revisit later):** Consider turning off automatic Android OS updates/reboots on the Galaxy Tab A11+ so overnight reboots don't unpin the app.
-- **Auto-return after call (next):** Explore returning automatically to the pinned web app after a Google Voice/Meet call ends.
-- **Morning review items (decided overnight for Tom to confirm):**
-  - Free text alerts: added optional carrier SMS-gateway email field in Settings (e.g. `@vtext.com` / `@txt.att.net`).
-  - Meet buttons: two separate buttons (**Call Tom** + **Call Katie**) with fixed Meet links + email alerts.
-  - Photo slideshow: Drive folder + 15-min email-to-Drive auto-import.
+- **Tablet auto-updates (revisit later):** Consider turning off automatic Android OS updates/reboots on the Galaxy Tab A11+ so overnight reboots don't interrupt kiosk mode.
+- **Settings links remaining:** Add Doctor phone number and Drive Photo/Video folder URLs in **⚙️ Settings** when ready.
