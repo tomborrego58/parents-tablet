@@ -103,5 +103,5 @@ Everything used is **free** except **Fully Kiosk Browser PLUS** (~US$9 one-time,
 
 ## Open decisions / extras
 - **Reconsider later:** Web App access is currently set to **Anyone** (so it opens cleanly on tablet + phone); revisit locking down to **Only myself** later.
-- **Tablet auto-updates (revisit later):** Consider turning off automatic Android OS updates/reboots on the Galaxy Tab A11+ so overnight reboots don't interrupt kiosk mode.
+- **Tablet Android OS auto-updates (disabled 2026-11-27):** Turned OFF `Settings → Software update → Auto download over Wi-Fi` and `Settings → Developer options → Auto update system` on the Galaxy Tab A11+ so overnight reboots don't interrupt kiosk mode. **Reminder:** OS updates cannot be run remotely — if app/WebView/tablet issues appear later, check & install Android OS updates manually in person on the tablet.
 - **Settings links remaining:** Add Doctor phone number and optional Video Messages Drive folder URL in **⚙️ Settings** when ready.
