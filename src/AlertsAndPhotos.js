@@ -214,7 +214,6 @@ function getDrivePhotos() {
   try {
     var deadlineMs = Date.now() + 12000;
     var folder = DriveApp.getFolderById(folderId);
-    var out = [];
     var subs = [];
     var subIt = folder.getFolders();
     while (subIt.hasNext()) {
@@ -224,18 +223,26 @@ function getDrivePhotos() {
       return a.getName().localeCompare(b.getName());
     });
 
-    if (subs.length > 0) {
-      var perSubCap = Math.max(40, Math.floor(350 / subs.length));
-      for (var i = 0; i < subs.length && out.length < 500; i++) {
-        var remaining = 500 - out.length;
-        var items = sampleFolderImages_(subs[i], subs[i].getName(), Math.min(perSubCap, remaining), deadlineMs);
-        out = out.concat(items);
-      }
+    var buckets = [];
+    for (var i = 0; i < subs.length; i++) {
+      var items = sampleFolderImages_(subs[i], subs[i].getName(), 500, deadlineMs);
+      if (items.length) buckets.push(shuffleArray_(items));
     }
+    var rootItems = sampleFolderImages_(folder, '', 500, deadlineMs);
+    if (rootItems.length) buckets.push(shuffleArray_(rootItems));
 
-    if (out.length < 500) {
-      var rootItems = sampleFolderImages_(folder, '', 500 - out.length, deadlineMs);
-      out = out.concat(rootItems);
+    var out = [];
+    var idx = 0;
+    while (out.length < 500 && buckets.length > 0) {
+      var addedAny = false;
+      for (var b = 0; b < buckets.length && out.length < 500; b++) {
+        if (idx < buckets[b].length) {
+          out.push(buckets[b][idx]);
+          addedAny = true;
+        }
+      }
+      if (!addedAny) break;
+      idx++;
     }
     return shuffleArray_(out);
   } catch (e) {
