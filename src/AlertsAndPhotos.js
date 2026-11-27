@@ -177,32 +177,59 @@ function shuffleArray_(arr) {
   return arr;
 }
 
-function sampleFolderImages_(folder, albumName, cap, deadlineMs) {
-  var sampled = [];
-  var seen = 0;
+function listFolderImagesRest_(folderId, albumName, token) {
+  if (!token || typeof UrlFetchApp === 'undefined') return null;
+  var out = [];
+  var pageToken = '';
+  var q = "'" + folderId + "' in parents and trashed = false and mimeType contains 'image/'";
+  try {
+    do {
+      var url = 'https://www.googleapis.com/drive/v3/files'
+        + '?q=' + encodeURIComponent(q)
+        + '&fields=' + encodeURIComponent('nextPageToken,files(id,name)')
+        + '&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true'
+        + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+      var resp = UrlFetchApp.fetch(url, {
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      });
+      if (resp.getResponseCode() !== 200) return null;
+      var data = JSON.parse(resp.getContentText() || '{}');
+      var files = data.files || [];
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        out.push({
+          id: f.id,
+          name: f.name || '',
+          album: albumName,
+          url: 'https://lh3.googleusercontent.com/d/' + f.id + '=w1600'
+        });
+      }
+      pageToken = data.nextPageToken || '';
+    } while (pageToken && out.length < 10000);
+    return out;
+  } catch (e) {
+    return null;
+  }
+}
+
+function listFolderImagesDriveApp_(folder, albumName, deadlineMs) {
+  var out = [];
   var files = folder.getFiles();
   while (files.hasNext()) {
     if (Date.now() > deadlineMs) break;
     var f = files.next();
     var mime = f.getMimeType() || '';
     if (mime.indexOf('image/') !== 0) continue;
-    seen++;
-    if (sampled.length < cap) {
-      sampled.push(f);
-    } else {
-      var r = Math.floor(Math.random() * seen);
-      if (r < cap) sampled[r] = f;
-    }
-  }
-  return sampled.map(function (f) {
     var id = f.getId();
-    return {
+    out.push({
       id: id,
       name: f.getName(),
       album: albumName,
       url: 'https://lh3.googleusercontent.com/d/' + id + '=w1600'
-    };
-  });
+    });
+  }
+  return out;
 }
 
 function getDrivePhotos() {
@@ -212,9 +239,9 @@ function getDrivePhotos() {
   if (!folderId || typeof DriveApp === 'undefined') return [];
 
   try {
-    var deadlineMs = Date.now() + 12000;
+    var deadlineMs = Date.now() + 25000;
+    var token = (typeof ScriptApp !== 'undefined') ? ScriptApp.getOAuthToken() : '';
     var folder = DriveApp.getFolderById(folderId);
-    var out = [];
     var subs = [];
     var subIt = folder.getFolders();
     while (subIt.hasNext()) {
@@ -224,19 +251,19 @@ function getDrivePhotos() {
       return a.getName().localeCompare(b.getName());
     });
 
-    if (subs.length > 0) {
-      var perSubCap = Math.max(40, Math.floor(350 / subs.length));
-      for (var i = 0; i < subs.length && out.length < 500; i++) {
-        var remaining = 500 - out.length;
-        var items = sampleFolderImages_(subs[i], subs[i].getName(), Math.min(perSubCap, remaining), deadlineMs);
-        out = out.concat(items);
-      }
+    var out = [];
+    for (var i = 0; i < subs.length; i++) {
+      var sub = subs[i];
+      var subName = sub.getName();
+      var subItems = listFolderImagesRest_(sub.getId(), subName, token);
+      if (subItems === null) subItems = listFolderImagesDriveApp_(sub, subName, deadlineMs);
+      out = out.concat(subItems);
     }
 
-    if (out.length < 500) {
-      var rootItems = sampleFolderImages_(folder, '', 500 - out.length, deadlineMs);
-      out = out.concat(rootItems);
-    }
+    var rootItems = listFolderImagesRest_(folderId, '', token);
+    if (rootItems === null) rootItems = listFolderImagesDriveApp_(folder, '', deadlineMs);
+    out = out.concat(rootItems);
+
     return shuffleArray_(out);
   } catch (e) {
     return [];
