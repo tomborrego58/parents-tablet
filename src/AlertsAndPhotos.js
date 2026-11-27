@@ -177,7 +177,7 @@ function getDrivePhotos() {
     var folder = DriveApp.getFolderById(folderId);
     var files = folder.getFiles();
     var out = [];
-    while (files.hasNext() && out.length < 100) {
+    while (files.hasNext() && out.length < 500) {
       var f = files.next();
       var mime = f.getMimeType() || '';
       if (mime.indexOf('image/') === 0) {
@@ -185,7 +185,7 @@ function getDrivePhotos() {
         out.push({
           id: id,
           name: f.getName(),
-          url: 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1600'
+          url: 'https://lh3.googleusercontent.com/d/' + id + '=w1600'
         });
       }
     }
