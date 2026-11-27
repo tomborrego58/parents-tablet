@@ -33,7 +33,10 @@
     lastChimedDueKey: '',
     snoozedUntilMs: 0,
     expandedSlots: {},
-    showCallOthers: false
+    showCallOthers: false,
+    newCallMode: 'phone',
+    dialNumber: '',
+    dialEmail: ''
   };
 
   var toastTimer = null;
@@ -225,13 +228,13 @@
         return;
       }
 
-      var effMs = Math.max(parseTodayTime(now, slot.time), activeWaitUntil);
+      var baseMs = parseTodayTime(now, slot.time);
       var entry = {
         slot: slot,
         meds: slotMeds,
-        effectiveMs: effMs,
-        effectiveTimeStr: formatClock(new Date(effMs)),
-        isDue: nowMs >= effMs
+        effectiveMs: baseMs,
+        effectiveTimeStr: formatClock(new Date(baseMs)),
+        isDue: nowMs >= baseMs
       };
       if (entry.isDue) dueSlots.push(entry);
       else laterSlots.push(entry);
@@ -376,9 +379,11 @@
       html += '<div class="wait">⏳ Next meds at <b>' + esc(formatClock(new Date(pView.activeWaitUntil))) + '</b> (' + esc(wl) + ')</div>';
     }
     pView.visibleSlots.forEach(function (entry) {
+      if (entry.isDue) html += '<div class="slot-due-box">';
       html += '<div class="slot">' + esc(entry.slot.name) + ' <span>' + esc(entry.effectiveTimeStr) + '</span></div>';
       if (entry.slot.note) html += '<div class="slot-note">' + esc(entry.slot.note) + '</div>';
       entry.meds.forEach(function (m) { html += renderMedRow(m, false); });
+      if (entry.isDue) html += '</div>';
     });
     if (pView.laterSlots.length) {
       var parts = pView.laterSlots.map(function (l) {
@@ -609,7 +614,7 @@
         '<div class="settings-col">' +
           '<div class="lbl">Google Meet URLs</div>' +
           meetRowsHtml +
-          '<div style="margin-top:8px"><button type="button" class="sm-btn blue" id="btn-add-meet">+ Add Meet Person</button></div>' +
+          '<div style="margin-top:8px"><button type="button" class="sm-btn blue" id="btn-add-meet">+ Add New Person</button></div>' +
         '</div>' +
         '<div class="settings-col">' +
           '<div class="lbl">Drive Photo Folder URL / ID</div><input class="field" id="s-driveFolderId" value="' + esc(c.driveFolderId) + '">' +
@@ -693,7 +698,7 @@
     var btnFor = function (name, cls, id) {
       var c = getContactByName(name);
       if (c && c.phone) {
-        return '<a class="btn ' + cls + '" style="text-decoration:none" href="tel:' + esc(c.phone) + '">' + avatarHtml(name, c.photoUrl) + ' Call ' + esc(name) + '</a>';
+        return '<a class="btn ' + cls + '" style="text-decoration:none" target="_top" href="tel:' + esc(c.phone) + '">' + avatarHtml(name, c.photoUrl) + ' Call ' + esc(name) + '</a>';
       }
       return '<button class="btn ' + cls + '" id="' + id + '">' + avatarHtml(name, c.photoUrl) + ' Call ' + esc(name) + '</button>';
     };
@@ -913,9 +918,9 @@
 
     var cards = contacts.filter(function (c) { return c.name; }).map(function (c) {
       var phoneBtn = c.phone
-        ? '<a class="call-big-btn" style="background:#1f8a3b" href="tel:' + esc(c.phone) + '">📞 Phone</a>'
+        ? '<a class="call-big-btn" style="background:#1f8a3b" target="_top" href="tel:' + esc(c.phone) + '">📞 Phone</a>'
         : '<button type="button" class="call-big-btn" style="background:#5b5b5b" onclick="return false;">📞 No Phone</button>';
-      var videoBtn = '<a class="call-big-btn" style="background:#2f5fb3" href="' + meetAppIntent + '">📹 Video</a>';
+      var videoBtn = '<a class="call-big-btn" style="background:#2f5fb3" target="_top" href="' + meetAppIntent + '">📹 Video</a>';
 
       return (
         '<div class="call-person-card">' +
@@ -930,11 +935,63 @@
       cards.push(
         '<div class="call-person-card">' +
           '<div class="call-person-head">' + avatarHtml(docName, '') + '<span>' + esc(docName) + '</span></div>' +
-          '<div class="call-person-btns"><a class="call-big-btn" style="background:#c62828" href="tel:' + esc(cfg.doctorPhone) + '">📞 Phone</a></div>' +
+          '<div class="call-person-btns"><a class="call-big-btn" style="background:#c62828" target="_top" href="tel:' + esc(cfg.doctorPhone) + '">📞 Phone</a></div>' +
         '</div>'
       );
     }
-    return '<div class="edit-body"><div class="call-grid">' + cards.join('') + '</div></div>';
+    cards.push(
+      '<div class="call-person-card">' +
+        '<div class="call-person-head">' + avatarHtml('+', '') + '<span>New</span></div>' +
+        '<div class="call-person-btns">' +
+          '<button type="button" class="call-big-btn" style="background:#1f8a3b" id="btn-open-new-phone">📞 Phone</button>' +
+          '<button type="button" class="call-big-btn" style="background:#2f5fb3" id="btn-open-new-video">📹 Video</button>' +
+        '</div>' +
+      '</div>'
+    );
+
+    var dialHtml = '';
+    if (state.showCallOthers) {
+      var mode = state.newCallMode || 'phone';
+      var modeTabs =
+        '<div style="display:flex;gap:10px;margin-bottom:14px">' +
+          '<button type="button" class="btn ' + (mode === 'phone' ? 'call' : 'edit') + '" style="height:56px;font-size:22px" id="btn-new-mode-phone">📞 Phone</button>' +
+          '<button type="button" class="btn ' + (mode === 'video' ? 'photos' : 'edit') + '" style="height:56px;font-size:22px" id="btn-new-mode-video">📹 Video</button>' +
+        '</div>';
+
+      if (mode === 'phone') {
+        var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clear', '0', '⌫'];
+        var keysHtml = keys.map(function (k) {
+          return '<button type="button" class="dial-key" data-dial-key="' + k + '">' + k + '</button>';
+        }).join('');
+        var digits = state.dialNumber || '';
+        var callHref = digits ? ('tel:' + esc(digits)) : '#';
+        dialHtml =
+          '<div class="dlg"><div class="c" style="max-width:500px">' +
+            modeTabs +
+            '<div class="dial-readout">' + esc(digits || '—') + '</div>' +
+            '<div class="dial-grid">' + keysHtml + '</div>' +
+            '<div class="bb">' +
+              (digits
+                ? '<a class="btn call" style="height:72px;text-decoration:none" target="_top" href="' + callHref + '">📞 Call</a>'
+                : '<button type="button" class="btn call" style="height:72px;opacity:.5" disabled>📞 Call</button>') +
+              '<button type="button" class="btn edit" style="height:72px" id="btn-close-dialpad">Cancel</button>' +
+            '</div>' +
+          '</div></div>';
+      } else {
+        var meetAppIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.tachyon;end';
+        dialHtml =
+          '<div class="dlg"><div class="c" style="max-width:560px;text-align:left">' +
+            modeTabs +
+            '<div class="lbl" style="margin-top:0">Email address to video call</div>' +
+            '<input type="email" class="field" id="dial-email-input" value="' + esc(state.dialEmail || '') + '" placeholder="name@gmail.com">' +
+            '<div class="bb" style="margin-top:18px">' +
+              '<a class="btn photos" style="height:72px;text-decoration:none" target="_top" href="' + meetAppIntent + '">📹 Open Meet</a>' +
+              '<button type="button" class="btn edit" style="height:72px" id="btn-close-dialpad">Cancel</button>' +
+            '</div>' +
+          '</div></div>';
+      }
+    }
+    return '<div class="edit-body"><div class="call-grid">' + cards.join('') + '</div>' + dialHtml + '</div>';
   }
 
   function renderVideoBanner() {
@@ -998,24 +1055,15 @@
     } else if (state.view === 'settings') {
       app.innerHTML = '<div class="screen-meds">' + renderTopBar(now) + renderMainTabs() + '<div class="edit-body">' + renderSettingsTab() + '</div></div>';
     } else {
-      var showAlarmBar = (!state.config || state.config.alarmBanner !== 'no') &&
-        !!dueKey && now.getTime() >= state.snoozedUntilMs && !isInQuietHours(now);
-      var snoozeMin = (state.config && state.config.snoozeMin) || 10;
-      var alarmBarHtml = showAlarmBar
-        ? '<div class="alarm-bar"><div>🔔 Time for medications</div><button class="snooze-btn" id="btn-snooze">Snooze ' + snoozeMin + ' min</button></div>'
-        : '';
-
       app.innerHTML =
         '<div class="screen-meds">' +
           renderTopBar(now) +
           renderMainTabs() +
           renderVideoBanner() +
-          alarmBarHtml +
           '<div class="cols">' +
             renderColumn('gene', 'Gene', geneView) +
             renderColumn('peggy', 'Peggy', peggyView) +
           '</div>' +
-          renderCallBar() +
           renderVideoModal() +
         '</div>';
     }
@@ -1147,6 +1195,63 @@
 
     var callMatt = document.getElementById('btn-call-matt');
     if (callMatt) callMatt.addEventListener('click', function () { triggerCall('matt'); });
+
+    var openNewPhone = document.getElementById('btn-open-new-phone');
+    if (openNewPhone) openNewPhone.addEventListener('click', function () {
+      state.dialNumber = '';
+      state.newCallMode = 'phone';
+      state.showCallOthers = true;
+      render();
+    });
+
+    var openNewVideo = document.getElementById('btn-open-new-video');
+    if (openNewVideo) openNewVideo.addEventListener('click', function () {
+      state.dialEmail = '';
+      state.newCallMode = 'video';
+      state.showCallOthers = true;
+      render();
+      setTimeout(function () {
+        var inp = document.getElementById('dial-email-input');
+        if (inp) inp.focus();
+      }, 40);
+    });
+
+    var modePhone = document.getElementById('btn-new-mode-phone');
+    if (modePhone) modePhone.addEventListener('click', function () {
+      state.newCallMode = 'phone';
+      render();
+    });
+
+    var modeVideo = document.getElementById('btn-new-mode-video');
+    if (modeVideo) modeVideo.addEventListener('click', function () {
+      state.newCallMode = 'video';
+      render();
+      setTimeout(function () {
+        var inp = document.getElementById('dial-email-input');
+        if (inp) inp.focus();
+      }, 40);
+    });
+
+    var dialEmailInp = document.getElementById('dial-email-input');
+    if (dialEmailInp) dialEmailInp.addEventListener('input', function () {
+      state.dialEmail = dialEmailInp.value;
+    });
+
+    var closeDial = document.getElementById('btn-close-dialpad');
+    if (closeDial) closeDial.addEventListener('click', function () {
+      state.showCallOthers = false;
+      render();
+    });
+
+    document.querySelectorAll('[data-dial-key]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var k = el.getAttribute('data-dial-key');
+        if (k === 'Clear') state.dialNumber = '';
+        else if (k === '⌫') state.dialNumber = (state.dialNumber || '').slice(0, -1);
+        else if ((state.dialNumber || '').length < 15) state.dialNumber = (state.dialNumber || '') + k;
+        render();
+      });
+    });
 
     var callOthers = document.getElementById('btn-call-others');
     if (callOthers) callOthers.addEventListener('click', function () {
