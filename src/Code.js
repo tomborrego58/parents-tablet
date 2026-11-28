@@ -3,9 +3,6 @@
  */
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action) {
-    return handleJsonApi_(e.parameter.action, []);
-  }
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle("Parents' Tablet")
@@ -16,6 +13,12 @@ function doPost(e) {
   try {
     var raw = e && e.postData && e.postData.contents ? e.postData.contents : '{}';
     var body = JSON.parse(raw);
+    if (typeof getProps_ === 'function') {
+      var expectedToken = getProps_().getProperty('pt_api_token') || '';
+      if (expectedToken && String(body.token || '') !== expectedToken) {
+        return jsonResponse_({ ok: false, error: 'Unauthorized' });
+      }
+    }
     return handleJsonApi_(body.action, Array.isArray(body.args) ? body.args : []);
   } catch (err) {
     return jsonResponse_({ ok: false, error: String(err && err.message ? err.message : err) });

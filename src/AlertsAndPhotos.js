@@ -5,8 +5,12 @@
 
 function sendMailSafe_(to, subject, body) {
   if (!to || typeof MailApp === 'undefined') return false;
-  MailApp.sendEmail({ to: to, subject: subject, body: body });
-  return true;
+  try {
+    MailApp.sendEmail({ to: to, subject: subject, body: body });
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 function sendChangeEmail_(cfg, summary) {
@@ -89,10 +93,8 @@ function runScheduledChecks(nowOpt) {
   var todayKey = formatDateKey_(now);
   var slots = readJson_(props, STORE_KEYS.SLOTS, []);
   var meds = readJson_(props, STORE_KEYS.MEDS, []);
-  var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
-  var dayLogs = allLogs[todayKey] || {};
-  var allAlerts = readJson_(props, STORE_KEYS.ALERTS, {});
-  var dayAlerts = allAlerts[todayKey] || { missedSent: {}, summarySent: false };
+  var dayLogs = readDayLogs_(props, todayKey);
+  var dayAlerts = readDayAlertState_(props, todayKey);
   var nowMs = now.getTime();
   var changed = false;
 
@@ -153,8 +155,7 @@ function runScheduledChecks(nowOpt) {
   }
 
   if (changed) {
-    allAlerts[todayKey] = dayAlerts;
-    writeJson_(props, STORE_KEYS.ALERTS, allAlerts);
+    writeDayAlertState_(props, todayKey, dayAlerts);
   }
   return dayAlerts;
 }
@@ -179,9 +180,11 @@ function shuffleArray_(arr) {
 
 function listFolderImagesRest_(folderId, albumName, token) {
   if (!token || typeof UrlFetchApp === 'undefined') return null;
+  var safeId = String(folderId || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!safeId) return null;
   var out = [];
   var pageToken = '';
-  var q = "'" + folderId + "' in parents and trashed = false and mimeType contains 'image/'";
+  var q = "'" + safeId + "' in parents and trashed = false and mimeType contains 'image/'";
   try {
     do {
       var url = 'https://www.googleapis.com/drive/v3/files'
@@ -253,6 +256,7 @@ function getDrivePhotos() {
 
     var out = [];
     for (var i = 0; i < subs.length; i++) {
+      if (Date.now() > deadlineMs) break;
       var sub = subs[i];
       var subName = sub.getName();
       var subItems = listFolderImagesRest_(sub.getId(), subName, token);
@@ -260,9 +264,11 @@ function getDrivePhotos() {
       out = out.concat(subItems);
     }
 
-    var rootItems = listFolderImagesRest_(folderId, '', token);
-    if (rootItems === null) rootItems = listFolderImagesDriveApp_(folder, '', deadlineMs);
-    out = out.concat(rootItems);
+    if (Date.now() <= deadlineMs) {
+      var rootItems = listFolderImagesRest_(folderId, '', token);
+      if (rootItems === null) rootItems = listFolderImagesDriveApp_(folder, '', deadlineMs);
+      out = out.concat(rootItems);
+    }
 
     return shuffleArray_(out);
   } catch (e) {
@@ -344,11 +350,18 @@ function getAvatarMap() {
       var mime = 'image/jpeg';
       if (typeof UrlFetchApp !== 'undefined') {
         try {
-          var thumbResp = UrlFetchApp.fetch('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w300', { muteHttpExceptions: true });
+          var fetchOpts = { muteHttpExceptions: true };
+          if (typeof ScriptApp !== 'undefined') {
+            fetchOpts.headers = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+          }
+          var thumbResp = UrlFetchApp.fetch('https://drive.google.com/thumbnail?id=' + encodeURIComponent(m[1]) + '&sz=w300', fetchOpts);
           if (thumbResp.getResponseCode() === 200) {
             var tb = thumbResp.getBlob();
-            mime = tb.getContentType() || 'image/jpeg';
-            b64 = Utilities.base64Encode(tb.getBytes());
+            var ct = tb.getContentType() || '';
+            if (ct.indexOf('image/') === 0) {
+              mime = ct;
+              b64 = Utilities.base64Encode(tb.getBytes());
+            }
           }
         } catch (err) {}
       }
@@ -380,6 +393,7 @@ function importPhotoEmails() {
   var savedCount = 0;
 
   threads.forEach(function (thread) {
+    var savedInThread = 0;
     var msgs = thread.getMessages();
     msgs.forEach(function (msg) {
       if (!msg.isUnread()) return;
@@ -389,10 +403,11 @@ function importPhotoEmails() {
         if (ct.indexOf('image/') === 0) {
           folder.createFile(att.copyBlob());
           savedCount++;
+          savedInThread++;
         }
       });
     });
-    thread.markRead();
+    if (savedInThread > 0) thread.markRead();
   });
   return savedCount;
 }

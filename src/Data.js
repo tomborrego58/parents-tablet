@@ -118,24 +118,65 @@ function getConfig_(props) {
   return out;
 }
 
-function saveConfig(configInput, nowOpt) {
-  var props = getProps_();
-  var cur = getConfig_(props);
-  var allowed = Object.keys(getDefaultConfig_());
-  allowed.forEach(function (k) {
-    if (configInput && configInput[k] !== undefined) {
-      cur[k] = configInput[k];
-    }
-  });
-  cur.missedDelayMin = Math.max(15, parseInt(cur.missedDelayMin, 10) || 120);
-  cur.soundRepeat = Math.max(0, Math.min(5, parseInt(cur.soundRepeat, 10) || 1));
-  cur.snoozeMin = Math.max(1, Math.min(60, parseInt(cur.snoozeMin, 10) || 10));
-  cur.photoCycleSec = Math.max(2, Math.min(120, parseInt(cur.photoCycleSec, 10) || 6));
-  if (!cur.dailySummaryTime || String(cur.dailySummaryTime).indexOf(':') === -1) {
-    cur.dailySummaryTime = '21:00';
+var LOG_KEY_PREFIX = 'pt_log_';
+var ALERT_KEY_PREFIX = 'pt_alert_';
+var HIST_KEY_PREFIX = 'pt_hist_';
+var MAX_HISTORY_ENTRIES = 25;
+
+function readDayLogs_(props, dateKey) {
+  var raw = props.getProperty(LOG_KEY_PREFIX + dateKey);
+  if (raw) {
+    try { return JSON.parse(raw); } catch (e) {}
   }
-  writeJson_(props, STORE_KEYS.CONFIG, cur);
-  return cur;
+  var legacy = readJson_(props, STORE_KEYS.LOGS, {});
+  return (legacy && legacy[dateKey]) ? legacy[dateKey] : {};
+}
+
+function writeDayLogs_(props, dateKey, dayLogs) {
+  writeJson_(props, LOG_KEY_PREFIX + dateKey, dayLogs || {});
+}
+
+function readDayAlertState_(props, dateKey) {
+  var raw = props.getProperty(ALERT_KEY_PREFIX + dateKey);
+  if (raw) {
+    try { return JSON.parse(raw); } catch (e) {}
+  }
+  var legacy = readJson_(props, STORE_KEYS.ALERTS, {});
+  return (legacy && legacy[dateKey]) ? legacy[dateKey] : { missedSent: {}, summarySent: false };
+}
+
+function writeDayAlertState_(props, dateKey, dayAlerts) {
+  writeJson_(props, ALERT_KEY_PREFIX + dateKey, dayAlerts || { missedSent: {}, summarySent: false });
+}
+
+function deletePropSafe_(props, key) {
+  try {
+    if (typeof props.deleteProperty === 'function') props.deleteProperty(key);
+    else props.setProperty(key, '');
+  } catch (e) {}
+}
+
+function saveConfig(configInput, nowOpt) {
+  return withLock_(function () {
+    var props = getProps_();
+    var cur = getConfig_(props);
+    var allowed = Object.keys(getDefaultConfig_());
+    allowed.forEach(function (k) {
+      if (configInput && configInput[k] !== undefined) {
+        cur[k] = configInput[k];
+      }
+    });
+    cur.missedDelayMin = Math.max(15, parseInt(cur.missedDelayMin, 10) || 120);
+    var parsedRepeat = parseInt(cur.soundRepeat, 10);
+    cur.soundRepeat = isNaN(parsedRepeat) ? 1 : Math.max(0, Math.min(5, parsedRepeat));
+    cur.snoozeMin = Math.max(1, Math.min(60, parseInt(cur.snoozeMin, 10) || 10));
+    cur.photoCycleSec = Math.max(2, Math.min(120, parseInt(cur.photoCycleSec, 10) || 6));
+    if (!cur.dailySummaryTime || String(cur.dailySummaryTime).indexOf(':') === -1) {
+      cur.dailySummaryTime = '21:00';
+    }
+    writeJson_(props, STORE_KEYS.CONFIG, cur);
+    return cur;
+  });
 }
 
 /**
@@ -155,7 +196,10 @@ function pruneOldData(nowOpt) {
       logsChanged = true;
     }
   });
-  if (logsChanged) writeJson_(props, STORE_KEYS.LOGS, allLogs);
+  if (logsChanged) {
+    if (Object.keys(allLogs).length) writeJson_(props, STORE_KEYS.LOGS, allLogs);
+    else deletePropSafe_(props, STORE_KEYS.LOGS);
+  }
 
   var alerts = readJson_(props, STORE_KEYS.ALERTS, {});
   var alertsChanged = false;
@@ -165,12 +209,50 @@ function pruneOldData(nowOpt) {
       alertsChanged = true;
     }
   });
-  if (alertsChanged) writeJson_(props, STORE_KEYS.ALERTS, alerts);
+  if (alertsChanged) {
+    if (Object.keys(alerts).length) writeJson_(props, STORE_KEYS.ALERTS, alerts);
+    else deletePropSafe_(props, STORE_KEYS.ALERTS);
+  }
 
   var history = readJson_(props, STORE_KEYS.HISTORY, []);
-  var filtered = history.filter(function (h) { return (h.ts || 0) >= cutoffMs; });
+  var keepIds = {};
+  var filtered = [];
+  history.forEach(function (h) {
+    if ((h.ts || 0) >= cutoffMs) {
+      keepIds[h.id] = true;
+      if (h.prevSlots || h.prevMeds) {
+        writeJson_(props, HIST_KEY_PREFIX + h.id, { prevSlots: h.prevSlots, prevMeds: h.prevMeds });
+      }
+      filtered.push({
+        id: h.id,
+        ts: h.ts,
+        dateKey: h.dateKey,
+        timeStr: h.timeStr,
+        summary: h.summary,
+        undone: !!h.undone
+      });
+    } else if (h && h.id) {
+      deletePropSafe_(props, HIST_KEY_PREFIX + h.id);
+    }
+  });
   if (filtered.length !== history.length) {
     writeJson_(props, STORE_KEYS.HISTORY, filtered);
+  }
+
+  if (typeof props.getProperties === 'function') {
+    var allProps = props.getProperties() || {};
+    Object.keys(allProps).forEach(function (k) {
+      if (k.indexOf(LOG_KEY_PREFIX) === 0) {
+        var dk = k.slice(LOG_KEY_PREFIX.length);
+        if (dk < cutoffKey) deletePropSafe_(props, k);
+      } else if (k.indexOf(ALERT_KEY_PREFIX) === 0) {
+        var ak = k.slice(ALERT_KEY_PREFIX.length);
+        if (ak < cutoffKey) deletePropSafe_(props, k);
+      } else if (k.indexOf(HIST_KEY_PREFIX) === 0) {
+        var hid = k.slice(HIST_KEY_PREFIX.length);
+        if (!keepIds[hid]) deletePropSafe_(props, k);
+      }
+    });
   }
   return { cutoffKey: cutoffKey };
 }
@@ -178,21 +260,48 @@ function pruneOldData(nowOpt) {
 function recordHistoryAndNotify_(props, summary, prevSlots, prevMeds, nowOpt) {
   var now = nowOpt || new Date();
   var cutoffMs = now.getTime() - RETENTION_DAYS * 86400000;
-  var history = readJson_(props, STORE_KEYS.HISTORY, [])
-    .filter(function (h) { return (h.ts || 0) >= cutoffMs; });
+  var rawHistory = readJson_(props, STORE_KEYS.HISTORY, []);
+  var history = [];
+  rawHistory.forEach(function (h) {
+    if ((h.ts || 0) < cutoffMs) {
+      if (h && h.id) deletePropSafe_(props, HIST_KEY_PREFIX + h.id);
+      return;
+    }
+    if (h.prevSlots || h.prevMeds) {
+      writeJson_(props, HIST_KEY_PREFIX + h.id, { prevSlots: h.prevSlots, prevMeds: h.prevMeds });
+    }
+    history.push({
+      id: h.id,
+      ts: h.ts,
+      dateKey: h.dateKey,
+      timeStr: h.timeStr,
+      summary: h.summary,
+      undone: !!h.undone
+    });
+  });
 
-  history.unshift({
-    id: makeId_('h'),
-    ts: now.getTime(),
-    dateKey: formatDateKey_(now),
-    timeStr: formatTimeHHMM_(now),
-    summary: summary,
-    undone: false,
+  var newId = makeId_('h');
+  writeJson_(props, HIST_KEY_PREFIX + newId, {
     prevSlots: clone_(prevSlots),
     prevMeds: clone_(prevMeds)
   });
 
-  if (history.length > 50) history = history.slice(0, 50);
+  history.unshift({
+    id: newId,
+    ts: now.getTime(),
+    dateKey: formatDateKey_(now),
+    timeStr: formatTimeHHMM_(now),
+    summary: summary,
+    undone: false
+  });
+
+  if (history.length > MAX_HISTORY_ENTRIES) {
+    var dropped = history.slice(MAX_HISTORY_ENTRIES);
+    dropped.forEach(function (d) {
+      if (d && d.id) deletePropSafe_(props, HIST_KEY_PREFIX + d.id);
+    });
+    history = history.slice(0, MAX_HISTORY_ENTRIES);
+  }
   writeJson_(props, STORE_KEYS.HISTORY, history);
 
   var cfg = getConfig_(props);
@@ -212,8 +321,7 @@ function getAppState(nowOpt) {
 
   var slots = readJson_(props, STORE_KEYS.SLOTS, []);
   var meds = readJson_(props, STORE_KEYS.MEDS, []);
-  var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
-  var todayLogs = allLogs[todayKey] || {};
+  var todayLogs = readDayLogs_(props, todayKey);
   var history = readJson_(props, STORE_KEYS.HISTORY, []).map(function (h) {
     return {
       id: h.id,
@@ -252,8 +360,7 @@ function toggleMedDose(medId, dateKeyOpt, nowOpt) {
     var props = getProps_();
     var now = nowOpt || new Date();
     var dateKey = dateKeyOpt || formatDateKey_(now);
-    var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
-    var dayLogs = allLogs[dateKey] || {};
+    var dayLogs = readDayLogs_(props, dateKey);
 
     if (dayLogs[medId]) {
       delete dayLogs[medId];
@@ -264,8 +371,7 @@ function toggleMedDose(medId, dateKeyOpt, nowOpt) {
       };
     }
 
-    allLogs[dateKey] = dayLogs;
-    writeJson_(props, STORE_KEYS.LOGS, allLogs);
+    writeDayLogs_(props, dateKey, dayLogs);
 
     return {
       todayKey: dateKey,
@@ -281,8 +387,7 @@ function clearPersonLogs(person, dateKeyOpt, nowOpt) {
     var now = nowOpt || new Date();
     var dateKey = dateKeyOpt || formatDateKey_(now);
     var meds = readJson_(props, STORE_KEYS.MEDS, []);
-    var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
-    var dayLogs = allLogs[dateKey] || {};
+    var dayLogs = readDayLogs_(props, dateKey);
 
     var personMedIds = {};
     meds.forEach(function (m) {
@@ -292,8 +397,7 @@ function clearPersonLogs(person, dateKeyOpt, nowOpt) {
       if (personMedIds[mid]) delete dayLogs[mid];
     });
 
-    allLogs[dateKey] = dayLogs;
-    writeJson_(props, STORE_KEYS.LOGS, allLogs);
+    writeDayLogs_(props, dateKey, dayLogs);
 
     return {
       todayKey: dateKey,
@@ -400,9 +504,12 @@ function undoHistory(historyId, nowOpt) {
 
     var curSlots = readJson_(props, STORE_KEYS.SLOTS, []);
     var curMeds = readJson_(props, STORE_KEYS.MEDS, []);
+    var snap = readJson_(props, HIST_KEY_PREFIX + historyId, null);
+    var restoreSlots = (snap && snap.prevSlots) ? snap.prevSlots : (entry.prevSlots || curSlots);
+    var restoreMeds = (snap && snap.prevMeds) ? snap.prevMeds : (entry.prevMeds || curMeds);
 
-    writeJson_(props, STORE_KEYS.SLOTS, entry.prevSlots || curSlots);
-    writeJson_(props, STORE_KEYS.MEDS, entry.prevMeds || curMeds);
+    writeJson_(props, STORE_KEYS.SLOTS, restoreSlots);
+    writeJson_(props, STORE_KEYS.MEDS, restoreMeds);
 
     entry.undone = true;
     writeJson_(props, STORE_KEYS.HISTORY, history);
@@ -497,6 +604,13 @@ if (typeof module !== 'undefined' && module.exports) {
     getProps_: getProps_,
     getConfig_: getConfig_,
     readJson_: readJson_,
-    writeJson_: writeJson_
+    writeJson_: writeJson_,
+    readDayLogs_: readDayLogs_,
+    writeDayLogs_: writeDayLogs_,
+    readDayAlertState_: readDayAlertState_,
+    writeDayAlertState_: writeDayAlertState_,
+    LOG_KEY_PREFIX: LOG_KEY_PREFIX,
+    ALERT_KEY_PREFIX: ALERT_KEY_PREFIX,
+    HIST_KEY_PREFIX: HIST_KEY_PREFIX
   };
 }

@@ -1045,6 +1045,8 @@
     padding: 32px 36px;
     max-width: 720px;
     width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
     text-align: center;
   }
   .dlg .q { font-size: 34px; font-weight: 800; margin-bottom: 10px; }
@@ -1113,14 +1115,22 @@
 <script>
 (function () {
   var STORAGE_KEY = 'pt_api_url_v1';
+  var TOKEN_KEY = 'pt_api_token_v1';
   var params = new URLSearchParams(window.location.search);
   var paramApi = params.get('api');
+  var paramToken = params.get('token');
+  if (paramToken) {
+    localStorage.setItem(TOKEN_KEY, paramToken.trim());
+  }
   if (paramApi && paramApi.indexOf('https://script.google.com/') === 0) {
     localStorage.setItem(STORAGE_KEY, paramApi.trim());
+    try { window.history.replaceState({}, document.title, window.location.pathname); } catch (e) {}
+  } else if (paramToken) {
     try { window.history.replaceState({}, document.title, window.location.pathname); } catch (e) {}
   }
 
   var apiUrl = localStorage.getItem(STORAGE_KEY) || '';
+  var apiToken = localStorage.getItem(TOKEN_KEY) || '';
 
   if (!apiUrl) {
     window.__PT_NEEDS_API_URL = true;
@@ -1162,14 +1172,21 @@
     METHODS.forEach(function (method) {
       runner[method] = function () {
         var args = Array.prototype.slice.call(arguments);
-        fetch(apiUrl, {
+        var payload = { action: method, args: args };
+        if (apiToken) payload.token = apiToken;
+        var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 35000) : null;
+        var fetchOpts = {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: method, args: args }),
+          body: JSON.stringify(payload),
           redirect: 'follow'
-        })
+        };
+        if (ctrl) fetchOpts.signal = ctrl.signal;
+        fetch(apiUrl, fetchOpts)
           .then(function (r) { return r.json(); })
           .then(function (json) {
+            if (timer) clearTimeout(timer);
             if (json && json.ok) {
               if (onOk) onOk(json.data);
             } else {
@@ -1178,6 +1195,7 @@
             }
           })
           .catch(function (err) {
+            if (timer) clearTimeout(timer);
             if (onErr) onErr(err);
           });
       };
@@ -1224,6 +1242,7 @@
     editTab: 'list',       // 'list' | 'form' | 'history' | 'settings'
     editMed: null,
     deleteTarget: null,
+    confirmClearPerson: '',
     manualView: null,
     dismissedDueKey: '',
     audioUnlocked: false,
@@ -1242,6 +1261,51 @@
   var lastStateSig = '';
   var photoTimer = null;
   var lastPhotoCycleSec = 6;
+  var photoDataCacheIds = [];
+  var chimeTimers = [];
+  var doseQueue = [];
+  var doseInFlight = false;
+  var hasLoadedOnce = false;
+  var loadRetryMs = 5000;
+  var loadRetryTimer = null;
+  var lastLocalDateKey = '';
+  var lastTickDueKey = null;
+  var lastTickWaitActive = null;
+
+  function cachePhotoDataUrl(pid, dataUrl) {
+    var found = state.photos.find(function (p) { return p.id === pid; });
+    if (!found) return;
+    found.dataUrl = dataUrl;
+    var existingIdx = photoDataCacheIds.indexOf(pid);
+    if (existingIdx !== -1) photoDataCacheIds.splice(existingIdx, 1);
+    photoDataCacheIds.push(pid);
+    while (photoDataCacheIds.length > 10) {
+      var evictId = photoDataCacheIds.shift();
+      var old = state.photos.find(function (p) { return p.id === evictId; });
+      if (old) delete old.dataUrl;
+    }
+  }
+
+  function swapPhotoInPlace() {
+    var list = getFilteredPhotos();
+    if (!list.length) return false;
+    var safeIdx = ((state.photoIdx % list.length) + list.length) % list.length;
+    var curPhoto = list[safeIdx];
+    var img = document.getElementById('slideshow-img');
+    if (!img || !curPhoto) return false;
+    img.removeAttribute('data-fallback-tried');
+    img.setAttribute('data-photo-id', curPhoto.id);
+    img.src = curPhoto.dataUrl || curPhoto.url;
+    var cnt = document.querySelector('.ph-count');
+    if (cnt) cnt.textContent = (safeIdx + 1) + ' / ' + list.length;
+    return true;
+  }
+
+  function clearChimeTimers() {
+    while (chimeTimers.length) {
+      clearTimeout(chimeTimers.pop());
+    }
+  }
 
   function shufflePhotos(arr) {
     var copy = (arr || []).slice();
@@ -1287,11 +1351,11 @@
     var sec = getPhotoCycleSec();
     lastPhotoCycleSec = sec;
     photoTimer = setInterval(function () {
-      if (state.view === 'photos' && !state.photoPaused) {
+      if (state.view === 'photos' && !state.photoPaused && !state.activeVideo) {
         var list = getFilteredPhotos();
         if (list.length > 1) {
           state.photoIdx = (state.photoIdx + 1) % list.length;
-          render();
+          if (!swapPhotoInPlace()) render();
         }
       }
     }, sec * 1000);
@@ -1366,8 +1430,12 @@
     var qs = (cfg.quietStart || '21:00').split(':');
     var qe = (cfg.quietEnd || '08:00').split(':');
     var cur = now.getHours() * 60 + now.getMinutes();
-    var sMin = (parseInt(qs[0], 10) || 21) * 60 + (parseInt(qs[1], 10) || 0);
-    var eMin = (parseInt(qe[0], 10) || 8) * 60 + (parseInt(qe[1], 10) || 0);
+    var sh = parseInt(qs[0], 10);
+    var sm = parseInt(qs[1], 10);
+    var eh = parseInt(qe[0], 10);
+    var em = parseInt(qe[1], 10);
+    var sMin = (isNaN(sh) ? 21 : sh) * 60 + (isNaN(sm) ? 0 : sm);
+    var eMin = (isNaN(eh) ? 8 : eh) * 60 + (isNaN(em) ? 0 : em);
     if (sMin === eMin) return false;
     return sMin > eMin ? (cur >= sMin || cur < eMin) : (cur >= sMin && cur < eMin);
   }
@@ -1412,6 +1480,7 @@
   function maybePlayAlarm(dueKey, now) {
     if (!dueKey) {
       state.lastChimedDueKey = '';
+      clearChimeTimers();
       return;
     }
     if (now.getTime() < state.snoozedUntilMs) return;
@@ -1419,13 +1488,15 @@
     if (state.lastChimedDueKey === dueKey) return;
 
     state.lastChimedDueKey = dueKey;
+    clearChimeTimers();
     var cfg = state.config || {};
     var type = cfg.soundType || 'chime';
     if (type === 'none') return;
-    var repeat = cfg.soundRepeat !== undefined ? parseInt(cfg.soundRepeat, 10) : 1;
+    var parsedRep = parseInt(cfg.soundRepeat, 10);
+    var repeat = isNaN(parsedRep) ? 1 : Math.max(0, Math.min(5, parsedRep));
     playChimeOnce(type);
     for (var i = 1; i <= repeat; i++) {
-      setTimeout(function () { playChimeOnce(type); }, i * 4500);
+      chimeTimers.push(setTimeout(function () { playChimeOnce(type); }, i * 4500));
     }
   }
 
@@ -1483,12 +1554,13 @@
       }
 
       var baseMs = parseTodayTime(now, slot.time);
+      var effMs = Math.max(baseMs, activeWaitUntil || 0);
       var entry = {
         slot: slot,
         meds: slotMeds,
-        effectiveMs: baseMs,
+        effectiveMs: effMs,
         effectiveTimeStr: formatClock(new Date(baseMs)),
-        isDue: nowMs >= baseMs
+        isDue: nowMs >= effMs
       };
       if (entry.isDue) dueSlots.push(entry);
       else laterSlots.push(entry);
@@ -2343,6 +2415,7 @@
             renderColumn('peggy', 'Peggy', peggyView) +
           '</div>' +
           renderVideoModal() +
+          renderClearConfirmModal() +
         '</div>';
     }
 
@@ -2377,9 +2450,25 @@
     return JSON.stringify(val);
   }
 
+  function renderClearConfirmModal() {
+    if (!state.confirmClearPerson) return '';
+    var who = state.confirmClearPerson === 'peggy' ? 'Peggy' : 'Gene';
+    return (
+      '<div class="dlg"><div class="c">' +
+        '<div class="q">Clear ' + who + "'s checkmarks?</div>" +
+        '<div class="s">This unchecks all of ' + who + "'s pills for today.</div>" +
+        '<div class="bb">' +
+          '<button type="button" class="btn edit" id="btn-clear-cancel">Cancel</button>' +
+          '<button type="button" class="btn red" id="btn-clear-confirm">Yes, Clear</button>' +
+        '</div>' +
+      '</div></div>'
+    );
+  }
+
   function computeStateSig(src) {
     if (!src) return '';
     return canonicalJson({
+      d: src.todayKey || '',
       s: src.slots || [],
       m: src.meds || [],
       l: src.todayLogs || {},
@@ -2440,19 +2529,39 @@
 
     document.querySelectorAll('[data-clear-person]').forEach(function (el) {
       el.addEventListener('click', function () {
-        var person = el.getAttribute('data-clear-person');
-        var who = person === 'peggy' ? 'Peggy' : 'Gene';
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run.withSuccessHandler(function (res) {
+        state.confirmClearPerson = el.getAttribute('data-clear-person') || '';
+        render();
+      });
+    });
+
+    var clearCancel = document.getElementById('btn-clear-cancel');
+    if (clearCancel) clearCancel.addEventListener('click', function () {
+      state.confirmClearPerson = '';
+      render();
+    });
+
+    var clearConfirm = document.getElementById('btn-clear-confirm');
+    if (clearConfirm) clearConfirm.addEventListener('click', function () {
+      var person = state.confirmClearPerson;
+      var who = person === 'peggy' ? 'Peggy' : 'Gene';
+      state.confirmClearPerson = '';
+      render();
+      if (person && typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function (res) {
             if (res && res.todayLogs) {
               state.todayLogs = res.todayLogs;
               state.todayKey = res.todayKey;
+              lastStateSig = computeStateSig(state);
               render();
               showToast('Cleared ' + who + "'s list");
             }
-          }).apiClearPersonLogs(person, state.todayKey);
-        }
-      });
+          })
+          .withFailureHandler(function () {
+            showToast('Could not clear — check Wi-Fi');
+          })
+          .apiClearPersonLogs(person, state.todayKey);
+      }
     });
 
     var slideImg = document.getElementById('slideshow-img');
@@ -2464,8 +2573,7 @@
         if (typeof google !== 'undefined' && google.script && google.script.run) {
           google.script.run.withSuccessHandler(function (dataUrl) {
             if (!dataUrl) return;
-            var found = state.photos.find(function (p) { return p.id === pid; });
-            if (found) found.dataUrl = dataUrl;
+            cachePhotoDataUrl(pid, dataUrl);
             var cur = document.getElementById('slideshow-img');
             if (cur && cur.getAttribute('data-photo-id') === pid) cur.src = dataUrl;
           }).apiGetPhotoData(pid);
@@ -2479,7 +2587,7 @@
       if (!list.length) return;
       state.photoIdx = ((state.photoIdx - 1) % list.length + list.length) % list.length;
       resetPhotoTimer();
-      render();
+      if (!swapPhotoInPlace()) render();
     });
 
     var phNext = document.getElementById('btn-ph-next');
@@ -2488,7 +2596,7 @@
       if (!list.length) return;
       state.photoIdx = (state.photoIdx + 1) % list.length;
       resetPhotoTimer();
-      render();
+      if (!swapPhotoInPlace()) render();
     });
 
     var phPause = document.getElementById('btn-ph-pause');
@@ -2624,6 +2732,9 @@
     document.querySelectorAll('[data-main-tab]').forEach(function (el) {
       el.addEventListener('click', function () {
         unlockAudio();
+        if (state.view === 'settings') {
+          saveSettingsFromDom(true);
+        }
         var target = el.getAttribute('data-main-tab');
         if (target === 'photos') {
           state.manualView = 'photos';
@@ -2675,7 +2786,7 @@
             state.manualView = 'meds';
             render();
             showToast('Medication saved');
-          }).apiSaveMed(state.editMed);
+          }).withFailureHandler(function () { showToast('Could not save — check Wi-Fi'); }).apiSaveMed(state.editMed);
           return;
         }
       }
@@ -2716,7 +2827,7 @@
           applyStateResponse(res);
           render();
           showToast('Time saved');
-        }).apiSaveSlot({ id: sid, time: inp.value });
+        }).withFailureHandler(function () { showToast('Could not save time — check Wi-Fi'); }).apiSaveSlot({ id: sid, time: inp.value });
       });
     });
 
@@ -2751,7 +2862,7 @@
         applyStateResponse(res);
         render();
         showToast('Deleted ' + target.name);
-      }).apiDeleteMed(target.id);
+      }).withFailureHandler(function () { showToast('Could not delete — check Wi-Fi'); }).apiDeleteMed(target.id);
     });
 
     document.querySelectorAll('[data-form-person]').forEach(function (el) {
@@ -2807,7 +2918,7 @@
         state.editTab = 'list';
         render();
         showToast('Medication saved');
-      }).apiSaveMed(state.editMed);
+      }).withFailureHandler(function () { showToast('Could not save — check Wi-Fi'); }).apiSaveMed(state.editMed);
     });
 
     document.querySelectorAll('[data-undo]').forEach(function (el) {
@@ -2817,7 +2928,7 @@
           applyStateResponse(res);
           render();
           showToast('Change undone');
-        }).apiUndoHistory(hid);
+        }).withFailureHandler(function () { showToast('Could not undo — check Wi-Fi'); }).apiUndoHistory(hid);
       });
     });
 
@@ -2862,6 +2973,7 @@
 
     var voiceBtn = document.getElementById('btn-voice-todo');
     if (voiceBtn) voiceBtn.addEventListener('click', function () {
+      state.todoDate = todayISO();
       state.todoPopupOpen = true;
       render();
       startVoiceIntoPopup();
@@ -2901,6 +3013,7 @@
         state.todoDraft = '';
         addSmartTodo(txt);
       } else {
+        state.todoDate = todayISO();
         state.todoPopupOpen = true;
         render();
       }
@@ -2942,7 +3055,7 @@
           state.todos[idx].done = !state.todos[idx].done;
           render();
           if (typeof google !== 'undefined' && google.script && google.script.run) {
-            google.script.run.apiSaveTodos(state.todos);
+            google.script.run.withFailureHandler(function () { showToast('Could not save To Do — check Wi-Fi'); }).apiSaveTodos(state.todos);
           }
         }
       });
@@ -2954,7 +3067,7 @@
         state.todos.splice(idx, 1);
         render();
         if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run.apiSaveTodos(state.todos);
+          google.script.run.withFailureHandler(function () { showToast('Could not save To Do — check Wi-Fi'); }).apiSaveTodos(state.todos);
         }
       });
     });
@@ -2967,7 +3080,7 @@
       state.notes.unshift({ text: inp.value.trim(), date: formatDateLine(d) + ' ' + formatClock(d) });
       render();
       if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run.apiSaveNotes(state.notes);
+        google.script.run.withFailureHandler(function () { showToast('Could not save note — check Wi-Fi'); }).apiSaveNotes(state.notes);
       }
     });
 
@@ -2977,7 +3090,7 @@
         state.notes.splice(idx, 1);
         render();
         if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run.apiSaveNotes(state.notes);
+          google.script.run.withFailureHandler(function () { showToast('Could not save note — check Wi-Fi'); }).apiSaveNotes(state.notes);
         }
       });
     });
@@ -3069,7 +3182,7 @@
     state.todos = sortTodosList(state.todos);
     render();
     if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run.apiSaveTodos(state.todos);
+      google.script.run.withFailureHandler(function () { showToast('Could not save To Do — check Wi-Fi'); }).apiSaveTodos(state.todos);
     }
   }
 
@@ -3111,12 +3224,17 @@
       document.body.classList.toggle('dark', payload.theme === 'dark');
     }
     if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run.withSuccessHandler(function (cfg) {
-        state.config = cfg;
-        loadPhotos();
-        loadAvatars();
-        showToast('Saved');
-      }).apiSaveConfig(payload);
+      google.script.run
+        .withSuccessHandler(function (cfg) {
+          state.config = cfg;
+          loadPhotos();
+          loadAvatars();
+          showToast('Saved');
+        })
+        .withFailureHandler(function () {
+          showToast('Could not save settings — check Wi-Fi');
+        })
+        .apiSaveConfig(payload);
     }
   }
 
@@ -3125,14 +3243,50 @@
     var label = who ? (who.charAt(0).toUpperCase() + who.slice(1)) : 'Tom';
     showToast('Calling ' + label + '…');
     if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run.withSuccessHandler(function (res) {
-        if (res && res.meetUrl) {
-          window.open(res.meetUrl, '_blank');
-        } else {
-          showToast('Alert sent to ' + label + ' (add Meet URL in Settings)');
-        }
-      }).apiNotifyCall(who, customUrl || '');
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.meetUrl && /^https?:\/\//i.test(res.meetUrl)) {
+            window.open(res.meetUrl, '_blank');
+          } else {
+            showToast('Alert sent to ' + label + ' (add Meet URL in Settings)');
+          }
+        })
+        .withFailureHandler(function () {
+          showToast('Could not send call alert — check Wi-Fi');
+        })
+        .apiNotifyCall(who, customUrl || '');
     }
+  }
+
+  function flushDoseQueue() {
+    if (doseInFlight || !doseQueue.length) return;
+    var item = doseQueue.shift();
+    doseInFlight = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        doseInFlight = false;
+        if (doseQueue.length > 0) {
+          flushDoseQueue();
+          return;
+        }
+        if (res && res.todayLogs) {
+          var nextSig = canonicalJson(res.todayLogs);
+          var curSig = canonicalJson(state.todayLogs);
+          state.todayLogs = res.todayLogs;
+          state.todayKey = res.todayKey;
+          lastStateSig = computeStateSig(state);
+          if (nextSig !== curSig) render();
+        }
+      })
+      .withFailureHandler(function () {
+        doseInFlight = false;
+        if (item.prev) state.todayLogs[item.medId] = item.prev;
+        else delete state.todayLogs[item.medId];
+        render();
+        showToast('Could not save — please tap again');
+        flushDoseQueue();
+      })
+      .apiToggleDose(item.medId, item.dateKey);
   }
 
   function onMedTap(e) {
@@ -3141,6 +3295,7 @@
     if (!medId) return;
     var prev = state.todayLogs[medId];
     var now = new Date();
+    var dateKey = state.todayKey || todayISO(now);
     if (prev) delete state.todayLogs[medId];
     else state.todayLogs[medId] = {
       takenAt: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
@@ -3149,24 +3304,8 @@
     render();
 
     if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (res && res.todayLogs) {
-            var nextSig = canonicalJson(res.todayLogs);
-            var curSig = canonicalJson(state.todayLogs);
-            state.todayLogs = res.todayLogs;
-            state.todayKey = res.todayKey;
-            lastStateSig = computeStateSig(state);
-            if (nextSig !== curSig) render();
-          }
-        })
-        .withFailureHandler(function () {
-          if (prev) state.todayLogs[medId] = prev;
-          else delete state.todayLogs[medId];
-          render();
-          showToast('Could not save — please tap again');
-        })
-        .apiToggleDose(medId, state.todayKey);
+      doseQueue.push({ medId: medId, prev: prev, dateKey: dateKey });
+      flushDoseQueue();
     }
   }
 
@@ -3205,16 +3344,32 @@
   }
 
   function loadState() {
-    if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
+    if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings' || doseInFlight || doseQueue.length) return;
     if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run.withSuccessHandler(function (res) {
-        if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings') return;
-        var sig = computeStateSig(res);
-        if (sig === lastStateSig) return;
-        applyStateResponse(res);
-        render();
-      }).apiGetState();
+      google.script.run
+        .withSuccessHandler(function (res) {
+          hasLoadedOnce = true;
+          loadRetryMs = 5000;
+          if (loadRetryTimer) { clearTimeout(loadRetryTimer); loadRetryTimer = null; }
+          if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings' || doseInFlight || doseQueue.length) return;
+          var sig = computeStateSig(res);
+          if (sig === lastStateSig) return;
+          applyStateResponse(res);
+          lastLocalDateKey = todayISO();
+          render();
+        })
+        .withFailureHandler(function () {
+          if (!hasLoadedOnce && !loadRetryTimer) {
+            loadRetryTimer = setTimeout(function () {
+              loadRetryTimer = null;
+              loadState();
+            }, loadRetryMs);
+            loadRetryMs = Math.min(30000, loadRetryMs + 5000);
+          }
+        })
+        .apiGetState();
     } else {
+      hasLoadedOnce = true;
       render();
     }
   }
@@ -3222,16 +3377,42 @@
   function tickClock() {
     if (state.view === 'edit' || state.view === 'settings' || state.todoPopupOpen) return;
     var now = new Date();
+    var localDay = todayISO(now);
+    if (lastLocalDateKey && localDay !== lastLocalDateKey) {
+      lastLocalDateKey = localDay;
+      state.todayKey = localDay;
+      state.todayLogs = {};
+      state.expandedSlots = {};
+      state.dismissedDueKey = '';
+      state.lastChimedDueKey = '';
+      state.todoDate = localDay;
+      clearChimeTimers();
+      lastStateSig = '';
+      render();
+      loadState();
+      return;
+    }
+    if (!lastLocalDateKey) lastLocalDateKey = localDay;
+
     var geneView = computePersonView('gene', now);
     var peggyView = computePersonView('peggy', now);
     var dueIds = [];
     geneView.dueSlots.forEach(function (d) { dueIds.push('g:' + d.slot.id); });
     peggyView.dueSlots.forEach(function (d) { dueIds.push('p:' + d.slot.id); });
     var dueKey = dueIds.join(',');
+    var waitActive = (geneView.activeWaitUntil > 0) || (peggyView.activeWaitUntil > 0);
+    var dueChanged = (lastTickDueKey !== null && dueKey !== lastTickDueKey);
+    var waitChanged = (lastTickWaitActive !== null && waitActive !== lastTickWaitActive);
+    lastTickDueKey = dueKey;
+    lastTickWaitActive = waitActive;
+
     var shouldBeMeds = !!dueKey && !(state.manualView === 'photos' && state.dismissedDueKey === dueKey);
-    if ((shouldBeMeds && state.view === 'photos') || (!shouldBeMeds && state.view === 'meds' && state.manualView !== 'meds')) {
+    if ((shouldBeMeds && state.view === 'photos') || (!shouldBeMeds && state.view === 'meds' && state.manualView !== 'meds') || (state.view === 'meds' && (dueChanged || waitChanged))) {
       render();
       return;
+    }
+    if (dueKey && state.lastChimedDueKey !== dueKey) {
+      maybePlayAlarm(dueKey, now);
     }
     var clk = document.querySelector('.top .clock, .ph-clock .time');
     var nextClk = formatClock(now);
@@ -3240,6 +3421,13 @@
     var nextDy = formatDateLine(now);
     if (dy && dy.textContent !== nextDy) dy.textContent = nextDy;
   }
+
+  window.addEventListener('online', function () {
+    loadState();
+    loadPhotos();
+    loadVideos();
+    loadAvatars();
+  });
 
   loadState();
   loadPhotos();

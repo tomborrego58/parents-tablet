@@ -13,14 +13,22 @@ const appScript = fs.readFileSync(path.join(root, 'src', 'App.html'), 'utf8');
 const shim = `<script>
 (function () {
   var STORAGE_KEY = 'pt_api_url_v1';
+  var TOKEN_KEY = 'pt_api_token_v1';
   var params = new URLSearchParams(window.location.search);
   var paramApi = params.get('api');
+  var paramToken = params.get('token');
+  if (paramToken) {
+    localStorage.setItem(TOKEN_KEY, paramToken.trim());
+  }
   if (paramApi && paramApi.indexOf('https://script.google.com/') === 0) {
     localStorage.setItem(STORAGE_KEY, paramApi.trim());
+    try { window.history.replaceState({}, document.title, window.location.pathname); } catch (e) {}
+  } else if (paramToken) {
     try { window.history.replaceState({}, document.title, window.location.pathname); } catch (e) {}
   }
 
   var apiUrl = localStorage.getItem(STORAGE_KEY) || '';
+  var apiToken = localStorage.getItem(TOKEN_KEY) || '';
 
   if (!apiUrl) {
     window.__PT_NEEDS_API_URL = true;
@@ -62,14 +70,21 @@ const shim = `<script>
     METHODS.forEach(function (method) {
       runner[method] = function () {
         var args = Array.prototype.slice.call(arguments);
-        fetch(apiUrl, {
+        var payload = { action: method, args: args };
+        if (apiToken) payload.token = apiToken;
+        var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 35000) : null;
+        var fetchOpts = {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: method, args: args }),
+          body: JSON.stringify(payload),
           redirect: 'follow'
-        })
+        };
+        if (ctrl) fetchOpts.signal = ctrl.signal;
+        fetch(apiUrl, fetchOpts)
           .then(function (r) { return r.json(); })
           .then(function (json) {
+            if (timer) clearTimeout(timer);
             if (json && json.ok) {
               if (onOk) onOk(json.data);
             } else {
@@ -78,6 +93,7 @@ const shim = `<script>
             }
           })
           .catch(function (err) {
+            if (timer) clearTimeout(timer);
             if (onErr) onErr(err);
           });
       };
