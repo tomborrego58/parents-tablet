@@ -1262,6 +1262,7 @@
     audioUnlocked: false,
     lastChimedDueKey: '',
     snoozedUntilMs: 0,
+    bannerDismissedDay: (function () { try { return localStorage.getItem('pt_banner_dismissed_day') || ''; } catch (e) { return ''; } })(),
     expandedSlots: {},
     showCallOthers: false,
     newCallMode: 'phone',
@@ -2066,13 +2067,17 @@
 
   function renderSnoozeBar(dueKey, now) {
     if (!dueKey) return '';
+    if (state.bannerDismissedDay === todayISO(now)) return '';
     if (now.getTime() < state.snoozedUntilMs) return '';
     if (state.config && state.config.alarmBanner === 'no') return '';
     var mins = (state.config && state.config.snoozeMin) || 10;
     return (
       '<div class="alarm-bar">' +
         '<span>⏰ Medications are due</span>' +
-        '<button type="button" class="snooze-btn" id="btn-snooze">Snooze ' + esc(mins) + ' min</button>' +
+        '<div style="display:flex;gap:10px">' +
+          '<button type="button" class="snooze-btn" id="btn-snooze">Snooze ' + esc(mins) + ' min</button>' +
+          '<button type="button" class="snooze-btn" style="background:#4b5563" id="btn-dismiss-banner">Dismiss</button>' +
+        '</div>' +
       '</div>'
     );
   }
@@ -2467,7 +2472,7 @@
           '</div>'
         : '';
 
-      var showDueBanner = !!dueKey && (!state.config || state.config.alarmBanner !== 'no') && (now.getTime() >= state.snoozedUntilMs);
+      var showDueBanner = !!dueKey && state.bannerDismissedDay !== todayISO(now) && (!state.config || state.config.alarmBanner !== 'no') && (now.getTime() >= state.snoozedUntilMs);
       var dueBannerHtml = showDueBanner
         ? '<div class="banner" id="open-meds-banner"><span>💊 Medications are due</span><span class="go">View Meds →</span></div>'
         : '';
@@ -2725,10 +2730,20 @@
 
     var snoozeEl = document.getElementById('btn-snooze');
     if (snoozeEl) snoozeEl.addEventListener('click', function () {
+      clearChimeTimers();
       var mins = (state.config && state.config.snoozeMin) || 10;
       state.snoozedUntilMs = Date.now() + mins * 60000;
       render();
       showToast('Snoozed for ' + mins + ' minutes');
+    });
+
+    var dismissBannerEl = document.getElementById('btn-dismiss-banner');
+    if (dismissBannerEl) dismissBannerEl.addEventListener('click', function () {
+      clearChimeTimers();
+      state.bannerDismissedDay = todayISO();
+      try { localStorage.setItem('pt_banner_dismissed_day', state.bannerDismissedDay); } catch (e) {}
+      render();
+      showToast('Alert dismissed for today');
     });
 
     var toPhotos = document.getElementById('btn-to-photos');
