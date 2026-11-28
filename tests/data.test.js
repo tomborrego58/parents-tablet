@@ -13,7 +13,13 @@ function installMockServices(initial = {}) {
     getScriptProperties() {
       return {
         getProperty(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
-        setProperty(k, v) { store[k] = String(v); }
+        setProperty(k, v) {
+          const s = String(v);
+          if (s.length > 9216) throw new Error('Property value is too large: ' + k + ' (' + s.length + ' bytes)');
+          store[k] = s;
+        },
+        deleteProperty(k) { delete store[k]; },
+        getProperties() { return { ...store }; }
       };
     }
   };
@@ -165,4 +171,42 @@ test('Code.js dispatchApi_ routes whitelisted actions and rejects unknown action
   const st = code.dispatchApi_('apiGetState', []);
   assert.ok(Array.isArray(st.meds));
   assert.throws(() => code.dispatchApi_('unknownAction', []), /Unknown action/);
+});
+
+test('sharded logs, alerts, and history stay under 9KB limit and prune cleanly', () => {
+  const { store } = installMockServices();
+  data.seedExampleData();
+  const base = new Date(2026, 7, 1, 9, 0, 0); // Aug 1, 2026
+
+  // Simulate 100 days of logs across 10 meds
+  for (let d = 0; d < 100; d++) {
+    const dt = new Date(base.getTime() + d * 86400000);
+    const dk = data.formatDateKey_(dt);
+    for (let m = 1; m <= 10; m++) {
+      data.toggleMedDose('m' + m, dk, dt);
+    }
+  }
+
+  // Simulate 30 med edits (would have crashed 9KB limit before sharding)
+  for (let i = 0; i < 30; i++) {
+    data.saveSlot({ id: 'p-am', time: i % 2 === 0 ? '08:05' : '08:10' }, new Date(base.getTime() + 99 * 86400000));
+  }
+
+  // Every property key must be < 9KB
+  Object.keys(store).forEach((k) => {
+    assert.ok(store[k].length < 9216, `Key ${k} exceeded 9KB (${store[k].length})`);
+  });
+
+  // Prune 100 days later -> old sharded log keys removed
+  const pruneNow = new Date(base.getTime() + 100 * 86400000);
+  data.pruneOldData(pruneNow);
+  assert.equal(store[data.LOG_KEY_PREFIX + '2026-08-01'], undefined);
+  assert.ok(store[data.LOG_KEY_PREFIX + data.formatDateKey_(new Date(base.getTime() + 99 * 86400000))]);
+});
+
+test('saveConfig preserves soundRepeat=0 and photoCycleSec', () => {
+  installMockServices();
+  const cfg = data.saveConfig({ soundRepeat: 0, photoCycleSec: 8 });
+  assert.equal(cfg.soundRepeat, 0);
+  assert.equal(cfg.photoCycleSec, 8);
 });
