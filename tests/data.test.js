@@ -210,3 +210,46 @@ test('saveConfig preserves soundRepeat=0 and photoCycleSec', () => {
   assert.equal(cfg.soundRepeat, 0);
   assert.equal(cfg.photoCycleSec, 8);
 });
+
+test('clean deploy initializes default slots, validates weekly days, honors client dateKey, and caps todos <8KB', () => {
+  const { store } = installMockServices();
+  // Clean deploy has default slots automatically
+  const st0 = data.getAppState('2026-11-28');
+  assert.equal(st0.todayKey, '2026-11-28');
+  assert.ok(st0.slots.length >= 6);
+
+  // Weekly med with empty days throws
+  assert.throws(() => data.saveMed({
+    person: 'gene',
+    name: 'Weekly Test',
+    freq: 'weekly',
+    days: []
+  }), /at least one day/);
+
+  // Weekly med with multiple days trims to 1 day and auto-assigns first slot
+  const st1 = data.saveMed({
+    person: 'gene',
+    name: 'Weekly Test',
+    freq: 'weekly',
+    days: [2, 5]
+  }, new Date(2026, 10, 28, 9, 0, 0));
+  const savedMed = st1.meds.find((m) => m.name === 'Weekly Test');
+  assert.deepEqual(savedMed.days, [2]);
+  assert.ok(savedMed.slotId);
+
+  // 120 todos capped safely under 9KB
+  const bigTodos = [];
+  for (let i = 0; i < 120; i++) {
+    bigTodos.push({
+      desc: 'Long task description item number ' + i + ' with extra text to test 9KB guard',
+      dateISO: '2026-11-28',
+      timeStr: '10:00 a',
+      who: 'Both',
+      from: 'Tom',
+      done: i % 2 === 0
+    });
+  }
+  const capped = data.saveTodos(bigTodos);
+  assert.ok(capped.length < 120);
+  assert.ok(store[data.STORE_KEYS.TODOS].length <= 8000);
+});

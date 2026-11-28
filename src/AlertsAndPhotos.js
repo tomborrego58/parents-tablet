@@ -272,7 +272,7 @@ function getDrivePhotos() {
 
     return shuffleArray_(out);
   } catch (e) {
-    return [];
+    return null;
   }
 }
 
@@ -397,13 +397,16 @@ function importPhotoEmails() {
     var msgs = thread.getMessages();
     msgs.forEach(function (msg) {
       if (!msg.isUnread()) return;
-      var atts = msg.getAttachments();
+      var atts = msg.getAttachments({ includeInlineImages: false, includeAttachments: true });
       atts.forEach(function (att) {
         var ct = att.getContentType() || '';
         if (ct.indexOf('image/') === 0) {
-          folder.createFile(att.copyBlob());
-          savedCount++;
-          savedInThread++;
+          var blob = att.copyBlob();
+          if (blob.getBytes().length >= 15360) {
+            folder.createFile(blob);
+            savedCount++;
+            savedInThread++;
+          }
         }
       });
     });

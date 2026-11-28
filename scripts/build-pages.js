@@ -29,6 +29,11 @@ const shim = `<script>
 
   var apiUrl = localStorage.getItem(STORAGE_KEY) || '';
   var apiToken = localStorage.getItem(TOKEN_KEY) || '';
+  window.__PT_RESET_API_URL = function () {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.reload();
+  };
 
   if (!apiUrl) {
     window.__PT_NEEDS_API_URL = true;
@@ -48,6 +53,15 @@ const shim = `<script>
           alert('Please paste the full https://script.google.com/macros/s/.../exec URL.');
           return;
         }
+        try {
+          var u = new URL(val);
+          var tk = u.searchParams.get('token');
+          if (tk) {
+            localStorage.setItem(TOKEN_KEY, tk.trim());
+            u.searchParams.delete('token');
+            val = u.toString();
+          }
+        } catch (e) {}
         localStorage.setItem(STORAGE_KEY, val);
         window.location.reload();
       });

@@ -179,82 +179,103 @@ function saveConfig(configInput, nowOpt) {
   });
 }
 
+function getDefaultSlots_() {
+  return [
+    { id: 'g-wake', person: 'gene', name: 'Wake up', time: '07:00', waitMinutes: 120 },
+    { id: 'g-am', person: 'gene', name: 'Morning', time: '08:00' },
+    { id: 'g-din', person: 'gene', name: 'With dinner', time: '18:00' },
+    { id: 'g-bed', person: 'gene', name: 'Bedtime', time: '20:30' },
+    { id: 'p-am', person: 'peggy', name: 'Morning', time: '08:00' },
+    { id: 'p-bed', person: 'peggy', name: 'Bedtime', time: '21:00' }
+  ];
+}
+
+function readSlotsOrInit_(props) {
+  var slots = readJson_(props, STORE_KEYS.SLOTS, null);
+  if (Array.isArray(slots) && slots.length > 0) return slots;
+  var def = getDefaultSlots_();
+  writeJson_(props, STORE_KEYS.SLOTS, def);
+  return def;
+}
+
 /**
  * Removes logs, alert flags, and history entries older than RETENTION_DAYS (90 days).
  */
 function pruneOldData(nowOpt) {
-  var props = getProps_();
-  var now = nowOpt || new Date();
-  var cutoffMs = now.getTime() - RETENTION_DAYS * 86400000;
-  var cutoffKey = formatDateKey_(new Date(cutoffMs));
+  return withLock_(function () {
+    var props = getProps_();
+    var now = nowOpt || new Date();
+    var cutoffMs = now.getTime() - RETENTION_DAYS * 86400000;
+    var cutoffKey = formatDateKey_(new Date(cutoffMs));
 
-  var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
-  var logsChanged = false;
-  Object.keys(allLogs).forEach(function (k) {
-    if (k < cutoffKey) {
-      delete allLogs[k];
-      logsChanged = true;
-    }
-  });
-  if (logsChanged) {
-    if (Object.keys(allLogs).length) writeJson_(props, STORE_KEYS.LOGS, allLogs);
-    else deletePropSafe_(props, STORE_KEYS.LOGS);
-  }
-
-  var alerts = readJson_(props, STORE_KEYS.ALERTS, {});
-  var alertsChanged = false;
-  Object.keys(alerts).forEach(function (k) {
-    if (k < cutoffKey) {
-      delete alerts[k];
-      alertsChanged = true;
-    }
-  });
-  if (alertsChanged) {
-    if (Object.keys(alerts).length) writeJson_(props, STORE_KEYS.ALERTS, alerts);
-    else deletePropSafe_(props, STORE_KEYS.ALERTS);
-  }
-
-  var history = readJson_(props, STORE_KEYS.HISTORY, []);
-  var keepIds = {};
-  var filtered = [];
-  history.forEach(function (h) {
-    if ((h.ts || 0) >= cutoffMs) {
-      keepIds[h.id] = true;
-      if (h.prevSlots || h.prevMeds) {
-        writeJson_(props, HIST_KEY_PREFIX + h.id, { prevSlots: h.prevSlots, prevMeds: h.prevMeds });
-      }
-      filtered.push({
-        id: h.id,
-        ts: h.ts,
-        dateKey: h.dateKey,
-        timeStr: h.timeStr,
-        summary: h.summary,
-        undone: !!h.undone
-      });
-    } else if (h && h.id) {
-      deletePropSafe_(props, HIST_KEY_PREFIX + h.id);
-    }
-  });
-  if (filtered.length !== history.length) {
-    writeJson_(props, STORE_KEYS.HISTORY, filtered);
-  }
-
-  if (typeof props.getProperties === 'function') {
-    var allProps = props.getProperties() || {};
-    Object.keys(allProps).forEach(function (k) {
-      if (k.indexOf(LOG_KEY_PREFIX) === 0) {
-        var dk = k.slice(LOG_KEY_PREFIX.length);
-        if (dk < cutoffKey) deletePropSafe_(props, k);
-      } else if (k.indexOf(ALERT_KEY_PREFIX) === 0) {
-        var ak = k.slice(ALERT_KEY_PREFIX.length);
-        if (ak < cutoffKey) deletePropSafe_(props, k);
-      } else if (k.indexOf(HIST_KEY_PREFIX) === 0) {
-        var hid = k.slice(HIST_KEY_PREFIX.length);
-        if (!keepIds[hid]) deletePropSafe_(props, k);
+    var allLogs = readJson_(props, STORE_KEYS.LOGS, {});
+    var logsChanged = false;
+    Object.keys(allLogs).forEach(function (k) {
+      if (k < cutoffKey) {
+        delete allLogs[k];
+        logsChanged = true;
       }
     });
-  }
-  return { cutoffKey: cutoffKey };
+    if (logsChanged) {
+      if (Object.keys(allLogs).length) writeJson_(props, STORE_KEYS.LOGS, allLogs);
+      else deletePropSafe_(props, STORE_KEYS.LOGS);
+    }
+
+    var alerts = readJson_(props, STORE_KEYS.ALERTS, {});
+    var alertsChanged = false;
+    Object.keys(alerts).forEach(function (k) {
+      if (k < cutoffKey) {
+        delete alerts[k];
+        alertsChanged = true;
+      }
+    });
+    if (alertsChanged) {
+      if (Object.keys(alerts).length) writeJson_(props, STORE_KEYS.ALERTS, alerts);
+      else deletePropSafe_(props, STORE_KEYS.ALERTS);
+    }
+
+    var history = readJson_(props, STORE_KEYS.HISTORY, []);
+    var keepIds = {};
+    var filtered = [];
+    history.forEach(function (h) {
+      if ((h.ts || 0) >= cutoffMs) {
+        keepIds[h.id] = true;
+        if (h.prevSlots || h.prevMeds) {
+          writeJson_(props, HIST_KEY_PREFIX + h.id, { prevSlots: h.prevSlots, prevMeds: h.prevMeds });
+        }
+        filtered.push({
+          id: h.id,
+          ts: h.ts,
+          dateKey: h.dateKey,
+          timeStr: h.timeStr,
+          summary: h.summary,
+          undone: !!h.undone
+        });
+      } else if (h && h.id) {
+        deletePropSafe_(props, HIST_KEY_PREFIX + h.id);
+      }
+    });
+    if (filtered.length !== history.length) {
+      writeJson_(props, STORE_KEYS.HISTORY, filtered);
+    }
+
+    if (typeof props.getProperties === 'function') {
+      var allProps = props.getProperties() || {};
+      Object.keys(allProps).forEach(function (k) {
+        if (k.indexOf(LOG_KEY_PREFIX) === 0) {
+          var dk = k.slice(LOG_KEY_PREFIX.length);
+          if (dk < cutoffKey) deletePropSafe_(props, k);
+        } else if (k.indexOf(ALERT_KEY_PREFIX) === 0) {
+          var ak = k.slice(ALERT_KEY_PREFIX.length);
+          if (ak < cutoffKey) deletePropSafe_(props, k);
+        } else if (k.indexOf(HIST_KEY_PREFIX) === 0) {
+          var hid = k.slice(HIST_KEY_PREFIX.length);
+          if (!keepIds[hid]) deletePropSafe_(props, k);
+        }
+      });
+    }
+    return { cutoffKey: cutoffKey };
+  });
 }
 
 function recordHistoryAndNotify_(props, summary, prevSlots, prevMeds, nowOpt) {
@@ -314,12 +335,20 @@ function recordHistoryAndNotify_(props, summary, prevSlots, prevMeds, nowOpt) {
 /**
  * Loads current slots, meds, today's tick-off logs, settings, and recent history.
  */
-function getAppState(nowOpt) {
+function getAppState(nowOpt, dateKeyOpt) {
   var props = getProps_();
-  var now = nowOpt || new Date();
-  var todayKey = formatDateKey_(now);
+  var explicitKey = '';
+  var now = null;
+  if (typeof nowOpt === 'string') {
+    explicitKey = nowOpt;
+    now = new Date();
+  } else {
+    now = nowOpt || new Date();
+    explicitKey = dateKeyOpt || '';
+  }
+  var todayKey = (/^\d{4}-\d{2}-\d{2}$/.test(explicitKey)) ? explicitKey : formatDateKey_(now);
 
-  var slots = readJson_(props, STORE_KEYS.SLOTS, []);
+  var slots = readSlotsOrInit_(props);
   var meds = readJson_(props, STORE_KEYS.MEDS, []);
   var todayLogs = readDayLogs_(props, todayKey);
   var history = readJson_(props, STORE_KEYS.HISTORY, []).map(function (h) {
@@ -411,21 +440,30 @@ function saveMed(medInput, nowOpt) {
   return withLock_(function () {
     var props = getProps_();
     var now = nowOpt || new Date();
-    var slots = readJson_(props, STORE_KEYS.SLOTS, []);
+    var slots = readSlotsOrInit_(props);
     var meds = readJson_(props, STORE_KEYS.MEDS, []);
     var prevMeds = clone_(meds);
+
+    var rawDays = Array.isArray(medInput.days) ? medInput.days.map(Number).filter(function (d) { return d >= 0 && d <= 6; }) : [];
+    var freq = medInput.freq || 'daily';
+    if (freq === 'weekly' && rawDays.length > 1) rawDays = [rawDays[0]];
+    if ((freq === 'weekly' || freq === 'days') && rawDays.length === 0) {
+      throw new Error('Please choose at least one day of the week.');
+    }
+    var pSlots = slots.filter(function (s) { return s.person === (medInput.person === 'peggy' ? 'peggy' : 'gene'); });
+    var chosenSlotId = freq === 'prn' ? '' : (medInput.slotId || (pSlots[0] ? pSlots[0].id : ''));
 
     var clean = {
       id: medInput.id || makeId_('m'),
       person: medInput.person === 'peggy' ? 'peggy' : 'gene',
-      slotId: medInput.freq === 'prn' ? '' : (medInput.slotId || ''),
+      slotId: chosenSlotId,
       name: String(medInput.name || '').trim(),
       strength: String(medInput.strength || '').trim(),
       dose: String(medInput.dose || '').trim(),
       note: String(medInput.note || '').trim(),
       warning: String(medInput.warning || '').trim(),
-      freq: medInput.freq || 'daily',
-      days: Array.isArray(medInput.days) ? medInput.days.map(Number) : []
+      freq: freq,
+      days: rawDays
     };
     if (!clean.name) throw new Error('Medication name is required.');
 
@@ -549,10 +587,23 @@ function seedExampleData() {
   return { slots: slots.length, meds: meds.length };
 }
 
+function capArrayUnder8KB_(arr) {
+  var copy = arr.slice();
+  while (copy.length > 0 && JSON.stringify(copy).length > 8000) {
+    var doneIdx = -1;
+    for (var i = copy.length - 1; i >= 0; i--) {
+      if (copy[i] && copy[i].done) { doneIdx = i; break; }
+    }
+    if (doneIdx >= 0) copy.splice(doneIdx, 1);
+    else copy.pop();
+  }
+  return copy;
+}
+
 function saveTodos(todos) {
   return withLock_(function () {
     var props = getProps_();
-    var clean = Array.isArray(todos) ? todos : [];
+    var clean = capArrayUnder8KB_(Array.isArray(todos) ? todos : []);
     writeJson_(props, STORE_KEYS.TODOS, clean);
     return clean;
   });
@@ -561,7 +612,7 @@ function saveTodos(todos) {
 function saveNotes(notes) {
   return withLock_(function () {
     var props = getProps_();
-    var clean = Array.isArray(notes) ? notes : [];
+    var clean = capArrayUnder8KB_(Array.isArray(notes) ? notes : []);
     writeJson_(props, STORE_KEYS.NOTES, clean);
     return clean;
   });
