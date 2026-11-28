@@ -22,7 +22,7 @@ Tom gets an **email** when meds are added, changed or deleted, and when a dose h
 ## Medications
 - Each person has **time slots**, for example *Wake up*, *Morning*, *With dinner* and *Bedtime*. Each slot has an alarm time and an optional note.
 - Each medication has: name (brand name in brackets), strength, how many to take ("4 tablets = 1000 mg"), an optional note ("take after food"), a slot, and whether it's **daily** or **weekly** (with the day for weekly ones).
-- **Warning notes** stand out in red, for example the Abiraterone handling warning.
+- **Warning notes** stand out in red, for example a hazardous-handling warning.
 - **Wait timers:** a slot can say "nothing else for 2 hours". After it's ticked, the next slot shows *"Next meds at 9:12"*.
 - **Check boxes:** tapping one marks a dose as taken and records the time. Tapping again undoes it.
 - **Edit Meds:** a large button opens a simple form with name, dose, person, and slot or time picked with big tap buttons.
@@ -60,15 +60,15 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
   - Gene's and Peggy's real med lists are entered through the Edit Meds form (or local-only loader). They never go in GitHub.
 - [x] **1. Tablet cleanup guide:** debloated Galaxy Tab A11+ with ADB and set privacy settings (`docs/TABLET-CLEANUP.md`)
 - [x] **3. Alarms and missed-dose emails:** gentle chime (1 repeat), per-person blue/purple due-slot outlines on white, quiet hours 9pm–8am, missed-dose email after 2h, 9pm daily summary, configurable Settings
-- [x] **4. Photo slideshow:** Drive folder slideshow (all Drive photos randomly shuffled via fast Drive REST API v3, cookie-free `lh3` URLs + server-side fallback), configurable **Picture Cycle Time** in Settings (default 6s), **`◀ Back` / `⏸ Pause` / `Next ▶`** controls, auto-detected subfolder album buttons, + email-to-Drive auto-import — verified live on tablet
+- [x] **4. Photo slideshow:** Drive folder slideshow (all 1,890+ Drive photos randomly shuffled via fast Drive REST API v3, cookie-free `lh3` URLs + server-side fallback), configurable **Picture Cycle Time** in Settings (default 6s), **`◀ Back` / `⏸ Pause` / `Next ▶`** controls, left-side vertical subfolder album buttons (`All`, `Boys`, etc.), + email-to-Drive auto-import — verified live on tablet
 - [x] **5. Call buttons:** Call page with server-side Drive avatar thumbnails, Google Voice (`tel:`) + Google Meet app (`intent:`) buttons per contact, plus `New` Phone dialpad / Video email modal
-- [x] **6. Tablet setup and handover:** Fully Kiosk Browser PLUS running banner-free **2B GitHub Pages** frontend (`docs/app/index.html`, zero Google Apps Script banner, all med slots shown all the time, fullscreen, `Keep Screen On`, `Launch on Boot`, `Open Other URL Schemes`, `Voice` + `Meet` whitelisted, Android `○` Home returns straight to Parents' Tablet) (`docs/HANDOVER.md`)
+- [x] **6. Tablet setup and handover:** Fully Kiosk Browser PLUS running banner-free **2B GitHub Pages** frontend (`docs/app/index.html`, zero Google Apps Script banner, all med slots shown all the time, fullscreen, `Keep Screen On`, `Launch on Boot`, `Open Other URL Schemes`, `Voice` + `Meet` whitelisted, Android `○` Home returns straight to Parents' Tablet). Tablet Lock screen = **Swipe** (no PIN), One UI updated, `Auto download over Wi-Fi` OFF, and both parents' home Wi-Fi networks pre-loaded & verified saved (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Organize unzipped family photos into subfolders inside `Parent Tablet Pics` (e.g., `Matt and Katie`, `Laura and Tom`, `Boys`) so album buttons appear automatically on **🖼️ Pictures**.
-2. Optionally create/link a `Parents Tablet Videos` folder + add Doctor phone in **⚙️ Settings**.
+1. Review & fix any findings from the top-to-bottom software scrub.
+2. Update `docs/HANDOVER.md` + print the 1-page large-print "How to Use Your Tablet" cheat sheet for Gene & Peggy.
 3. Make 1-time Google Meet calls on the tablet to Tom, Katie, Laura, and Matt so they stay pinned on Meet's main screen.
-4. Print the 1-page "How to Use Your Tablet" sheet from `docs/HANDOVER.md` for Gene & Peggy.
+4. Optional: add additional photo subfolders (`Matt and Katie`, `Laura and Tom`), create/link `Parents Tablet Videos` folder, and add Doctor phone in **⚙️ Settings**.
 
 ## Alarm options: discuss with Tom before step 3
 Every option must be easy for older adults. Pick the simplest defaults and keep any controls large and obvious.
@@ -103,5 +103,5 @@ Everything used is **free** except **Fully Kiosk Browser PLUS** (~US$9 one-time,
 
 ## Open decisions / extras
 - **Reconsider later:** Web App access is currently set to **Anyone** (so it opens cleanly on tablet + phone); revisit locking down to **Only myself** later.
-- **Tablet Android OS auto-updates (disabled 2026-11-27):** Turned OFF `Settings → Software update → Auto download over Wi-Fi` and `Settings → Developer options → Auto update system` on the Galaxy Tab A11+ so overnight reboots don't interrupt kiosk mode. **Reminder:** OS updates cannot be run remotely — if app/WebView/tablet issues appear later, check & install Android OS updates manually in person on the tablet.
+- **Tablet Android OS auto-updates (disabled 2026-11-27):** Installed pending One UI update, then turned OFF `Settings → Software update → Auto download over Wi-Fi` on the Galaxy Tab A11+ (Wi-Fi-only tablet) so overnight reboots don't interrupt kiosk mode. **Reminder:** OS updates cannot be run remotely — if app/WebView/tablet issues appear later, check & install Android OS updates manually in person on the tablet.
 - **Settings links remaining:** Add Doctor phone number and optional Video Messages Drive folder URL in **⚙️ Settings** when ready.
