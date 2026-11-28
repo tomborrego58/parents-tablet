@@ -1131,6 +1131,11 @@
 
   var apiUrl = localStorage.getItem(STORAGE_KEY) || '';
   var apiToken = localStorage.getItem(TOKEN_KEY) || '';
+  window.__PT_RESET_API_URL = function () {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.reload();
+  };
 
   if (!apiUrl) {
     window.__PT_NEEDS_API_URL = true;
@@ -1150,6 +1155,15 @@
           alert('Please paste the full https://script.google.com/macros/s/.../exec URL.');
           return;
         }
+        try {
+          var u = new URL(val);
+          var tk = u.searchParams.get('token');
+          if (tk) {
+            localStorage.setItem(TOKEN_KEY, tk.trim());
+            u.searchParams.delete('token');
+            val = u.toString();
+          }
+        } catch (e) {}
         localStorage.setItem(STORAGE_KEY, val);
         window.location.reload();
       });
@@ -1271,6 +1285,28 @@
   var lastLocalDateKey = '';
   var lastTickDueKey = null;
   var lastTickWaitActive = null;
+  var lastUserActivityMs = Date.now();
+  var activeSpeechRec = null;
+  var failedLoadCount = 0;
+
+  function stopSpeechRec() {
+    if (activeSpeechRec) {
+      try { activeSpeechRec.onresult = null; activeSpeechRec.onerror = null; activeSpeechRec.onend = null; activeSpeechRec.abort(); } catch (e) {}
+      activeSpeechRec = null;
+    }
+    state.isListening = false;
+  }
+
+  ['pointerdown', 'keydown'].forEach(function (evName) {
+    document.addEventListener(evName, function () {
+      lastUserActivityMs = Date.now();
+      if (!state.audioUnlocked) {
+        unlockAudio();
+        var pill = document.getElementById('btn-unlock-sound');
+        if (pill && pill.parentNode) pill.parentNode.removeChild(pill);
+      }
+    }, true);
+  });
 
   function cachePhotoDataUrl(pid, dataUrl) {
     var found = state.photos.find(function (p) { return p.id === pid; });
@@ -1609,7 +1645,7 @@
     var dose = String(med.dose || '').trim();
     var strength = String(med.strength || '').trim();
     var name = String(med.name || '').trim();
-    var m = dose.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+    var m = dose.match(/^(\d+(?:[\/.-]\d+)?)\s+(.*)$/);
     if (!m) {
       return name + (strength ? ', ' + strength : '') + (dose ? ', ' + dose : '');
     }
@@ -1860,13 +1896,18 @@
     if (!state.history || !state.history.length) {
       return '<div class="empty-msg">No changes recorded yet.</div>';
     }
+    var latestActive = state.history.find(function (h) { return !h.undone; });
+    var latestId = latestActive ? latestActive.id : '';
     return state.history.map(function (h) {
+      var rightHtml = h.undone
+        ? '<span style="color:#666;font-weight:700">Undone</span>'
+        : (h.id === latestId
+          ? '<button class="sm-btn amber" data-undo="' + esc(h.id) + '">Undo</button>'
+          : '<span style="color:#888;font-size:18px;font-weight:600">Earlier change</span>');
       return (
         '<div class="hist">' +
           '<div><b>' + esc(h.summary) + '</b><div class="d">' + esc(h.dateKey) + ' at ' + esc(formatHHMM12(h.timeStr)) + '</div></div>' +
-          (h.undone
-            ? '<span style="color:#666;font-weight:700">Undone</span>'
-            : '<button class="sm-btn amber" data-undo="' + esc(h.id) + '">Undo</button>') +
+          rightHtml +
         '</div>'
       );
     }).join('');
@@ -1954,7 +1995,10 @@
         '<div class="settings-col">' +
           '<div class="lbl">Video Messages Drive Folder URL / ID</div><input class="field" id="s-videoFolderId" value="' + esc(c.videoFolderId) + '">' +
         '</div>' +
-      '</div>'
+      '</div>' +
+      (state.view === 'settings'
+        ? '<div style="margin-top:20px;display:flex;justify-content:flex-end"><button type="button" class="btn call" style="max-width:280px;height:68px" id="btn-save-settings-main">Save Settings</button></div>'
+        : '')
     );
   }
 
@@ -2008,12 +2052,27 @@
   }
 
   function renderTopBar(now) {
+    var showSoundUnlock = !state.audioUnlocked && (!state.config || state.config.soundType !== 'none');
     return (
       '<div class="top">' +
         '<div class="top-left">' +
           '<div class="clock">' + esc(formatClock(now)) + '</div>' +
           '<div class="day">' + esc(formatDateLine(now)) + '</div>' +
         '</div>' +
+        (showSoundUnlock ? '<button type="button" class="sound-pill" style="margin-top:0" id="btn-unlock-sound">🔊 Tap once to enable sound</button>' : '') +
+      '</div>'
+    );
+  }
+
+  function renderSnoozeBar(dueKey, now) {
+    if (!dueKey) return '';
+    if (now.getTime() < state.snoozedUntilMs) return '';
+    if (state.config && state.config.alarmBanner === 'no') return '';
+    var mins = (state.config && state.config.snoozeMin) || 10;
+    return (
+      '<div class="alarm-bar">' +
+        '<span>⏰ Medications are due</span>' +
+        '<button type="button" class="snooze-btn" id="btn-snooze">Snooze ' + esc(mins) + ' min</button>' +
       '</div>'
     );
   }
@@ -2077,7 +2136,17 @@
     var apMatch = s.match(/^(\d{1,2}):(\d{2})\s*([ap])m?$/);
     if (apMatch) {
       var h0 = parseInt(apMatch[1], 10);
-      if (h0 >= 1 && h0 <= 12) return h0 + ':' + apMatch[2] + ' ' + apMatch[3];
+      var m0 = parseInt(apMatch[2], 10);
+      if (h0 >= 1 && h0 <= 12 && m0 < 60) return h0 + ':' + apMatch[2] + ' ' + apMatch[3];
+    }
+    var compactAp = s.match(/^(\d{1,4})\s*([ap])m?$/);
+    if (compactAp) {
+      var dg = compactAp[1];
+      var hc = dg.length <= 2 ? parseInt(dg, 10) : Math.floor(parseInt(dg, 10) / 100);
+      var mc = dg.length <= 2 ? 0 : (parseInt(dg, 10) % 100);
+      if (hc >= 1 && hc <= 12 && mc < 60) {
+        return hc + ':' + String(mc).padStart(2, '0') + ' ' + compactAp[2];
+      }
     }
     var digits = s.replace(/\D/g, '');
     if (digits.length === 3 || digits.length === 4) {
@@ -2137,19 +2206,32 @@
     }
 
     var timeStr = fallbackTimeStr;
-    var tm = lower.match(/\b(by|before|nlt|at)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/);
-    if (tm && (tm[1] || tm[4] || tm[3])) {
-      var h = parseInt(tm[2], 10);
-      var m = parseInt(tm[3] || '0', 10);
-      var ap = tm[4] ? tm[4].charAt(0) : ((h >= 7 && h <= 11) ? 'a' : 'p');
+    var matchedTimeSpan = '';
+    var timeRegex = /\b(?:(by|before|nlt|at)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?|(\d{1,2}):(\d{2})\s*(am|pm)?|(\d{1,2})\s*(am|pm))\b/gi;
+    var tm;
+    while ((tm = timeRegex.exec(text)) !== null) {
+      var rawH = tm[2] || tm[5] || tm[8];
+      var rawM = tm[3] || tm[6] || '0';
+      var rawAp = (tm[4] || tm[7] || tm[9] || '').toLowerCase();
+      var h = parseInt(rawH, 10);
+      var m = parseInt(rawM, 10);
+      if (isNaN(h) || isNaN(m) || m >= 60) continue;
+      if (rawAp && (h < 1 || h > 12)) continue;
+      if (!rawAp && (h < 0 || h > 23)) continue;
+      var ap = rawAp ? rawAp.charAt(0) : (h >= 12 ? 'p' : ((h >= 7 && h <= 11) ? 'a' : 'p'));
       var h12 = h % 12 || 12;
       timeStr = h12 + ':' + String(m).padStart(2, '0') + ' ' + ap;
+      matchedTimeSpan = tm[0];
+      break;
     }
 
-    var clean = text
+    var clean = text;
+    if (matchedTimeSpan) {
+      clean = clean.replace(matchedTimeSpan, ' ');
+    }
+    clean = clean
       .replace(/^(we need to|i need to|need to|remember to|please)\s+/i, '')
       .replace(/\b(on\s+)?(today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi, '')
-      .replace(/\b(by|before|nlt|at)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi, '')
       .replace(/\s{2,}/g, ' ')
       .replace(/^[\s,.-]+|[\s,.-]+$/g, '');
     if (!clean) clean = text;
@@ -2238,7 +2320,7 @@
   function renderCallPeopleView() {
     var cfg = state.config || {};
     var contacts = getMeetContactsFromConfig(cfg);
-    var meetAppIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.tachyon;end';
+    var meetAppIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.tachyon;S.browser_fallback_url=https%3A%2F%2Fmeet.google.com%2F;end';
 
     var cards = contacts.filter(function (c) { return c.name; }).map(function (c) {
       var phoneBtn = c.phone
@@ -2302,14 +2384,13 @@
             '</div>' +
           '</div></div>';
       } else {
-        var meetAppIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.tachyon;end';
         dialHtml =
           '<div class="dlg"><div class="c" style="max-width:560px;text-align:left">' +
             modeTabs +
-            '<div class="lbl" style="margin-top:0">Email address to video call</div>' +
+            '<div class="lbl" style="margin-top:0">Email address to video call (optional — copied for Meet)</div>' +
             '<input type="email" class="field" id="dial-email-input" value="' + esc(state.dialEmail || '') + '" placeholder="name@gmail.com">' +
             '<div class="bb" style="margin-top:18px">' +
-              '<a class="btn photos" style="height:72px;text-decoration:none" target="_top" href="' + meetAppIntent + '">📹 Open Meet</a>' +
+              '<a class="btn photos" style="height:72px;text-decoration:none" target="_top" id="btn-open-meet-email" href="' + meetAppIntent + '">📹 Open Meet</a>' +
               '<button type="button" class="btn edit" style="height:72px" id="btn-close-dialpad">Cancel</button>' +
             '</div>' +
           '</div></div>';
@@ -2386,6 +2467,11 @@
           '</div>'
         : '';
 
+      var showDueBanner = !!dueKey && (!state.config || state.config.alarmBanner !== 'no') && (now.getTime() >= state.snoozedUntilMs);
+      var dueBannerHtml = showDueBanner
+        ? '<div class="banner" id="open-meds-banner"><span>💊 Medications are due</span><span class="go">View Meds →</span></div>'
+        : '';
+
       app.innerHTML =
         '<div class="screen-meds">' +
           renderTopBar(now) +
@@ -2394,7 +2480,7 @@
           '<div class="screen-photos">' +
             photoHtml +
             albumsHtml +
-            controlsHtml +
+            (showDueBanner ? dueBannerHtml : controlsHtml) +
           '</div>' +
           renderVideoModal() +
         '</div>';
@@ -2409,6 +2495,7 @@
         '<div class="screen-meds">' +
           renderTopBar(now) +
           renderMainTabs() +
+          renderSnoozeBar(dueKey, now) +
           renderVideoBanner() +
           '<div class="cols">' +
             renderColumn('gene', 'Gene', geneView) +
@@ -2568,15 +2655,31 @@
     if (slideImg) {
       slideImg.addEventListener('error', function () {
         var pid = slideImg.getAttribute('data-photo-id');
-        if (!pid || slideImg.getAttribute('data-fallback-tried')) return;
+        if (!pid) return;
+        var skipBroken = function () {
+          var list = getFilteredPhotos();
+          if (list.length > 1) {
+            state.photoIdx = (state.photoIdx + 1) % list.length;
+            swapPhotoInPlace();
+          }
+        };
+        if (slideImg.getAttribute('data-fallback-tried')) {
+          skipBroken();
+          return;
+        }
         slideImg.setAttribute('data-fallback-tried', '1');
         if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run.withSuccessHandler(function (dataUrl) {
-            if (!dataUrl) return;
-            cachePhotoDataUrl(pid, dataUrl);
-            var cur = document.getElementById('slideshow-img');
-            if (cur && cur.getAttribute('data-photo-id') === pid) cur.src = dataUrl;
-          }).apiGetPhotoData(pid);
+          google.script.run
+            .withSuccessHandler(function (dataUrl) {
+              if (!dataUrl) { skipBroken(); return; }
+              cachePhotoDataUrl(pid, dataUrl);
+              var cur = document.getElementById('slideshow-img');
+              if (cur && cur.getAttribute('data-photo-id') === pid) cur.src = dataUrl;
+            })
+            .withFailureHandler(skipBroken)
+            .apiGetPhotoData(pid);
+        } else {
+          skipBroken();
         }
       });
     }
@@ -2707,6 +2810,15 @@
       state.dialEmail = dialEmailInp.value;
     });
 
+    var openMeetEmail = document.getElementById('btn-open-meet-email');
+    if (openMeetEmail) openMeetEmail.addEventListener('click', function () {
+      var em = (state.dialEmail || '').trim();
+      if (em && navigator.clipboard && navigator.clipboard.writeText) {
+        try { navigator.clipboard.writeText(em); showToast('Copied ' + em + ' — paste in Meet'); } catch (e) {}
+      }
+      state.showCallOthers = false;
+    });
+
     var closeDial = document.getElementById('btn-close-dialpad');
     if (closeDial) closeDial.addEventListener('click', function () {
       state.showCallOthers = false;
@@ -2779,6 +2891,10 @@
       if (state.editTab === 'form' && state.editMed) {
         syncFormInputs();
         if (state.editMed.name && state.editMed.name.trim()) {
+          if ((state.editMed.freq === 'weekly' || state.editMed.freq === 'days') && (!Array.isArray(state.editMed.days) || !state.editMed.days.length)) {
+            showToast('Please tap which day(s) of the week');
+            return;
+          }
           google.script.run.withSuccessHandler(function (res) {
             applyStateResponse(res);
             state.editMed = null;
@@ -2789,6 +2905,20 @@
           }).withFailureHandler(function () { showToast('Could not save — check Wi-Fi'); }).apiSaveMed(state.editMed);
           return;
         }
+      }
+      if (state.editTab === 'list') {
+        (state.slots || []).forEach(function (s) {
+          var inp = document.getElementById('slot-time-' + s.id);
+          if (inp && inp.value && inp.value !== s.time) {
+            s.time = inp.value;
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run.withSuccessHandler(function (res) {
+                applyStateResponse(res);
+                render();
+              }).withFailureHandler(function () { showToast('Could not save time — check Wi-Fi'); }).apiSaveSlot({ id: s.id, time: inp.value });
+            }
+          }
+        });
       }
       if (state.editTab === 'settings') {
         saveSettingsFromDom(false);
@@ -2809,6 +2939,8 @@
 
     document.querySelectorAll('[data-tab]').forEach(function (el) {
       el.addEventListener('click', function () {
+        if (state.editTab === 'form') syncFormInputs();
+        if (state.editTab === 'settings') saveSettingsFromDom(true);
         var t = el.getAttribute('data-tab');
         if (t === 'form' && !state.editMed) {
           state.editMed = { person: 'gene', slotId: '', name: '', strength: '', dose: '', note: '', warning: '', freq: 'daily', days: [] };
@@ -2887,6 +3019,9 @@
         syncFormInputs();
         state.editMed.freq = el.getAttribute('data-form-freq');
         if (!Array.isArray(state.editMed.days)) state.editMed.days = [];
+        if (state.editMed.freq === 'weekly' && state.editMed.days.length > 1) {
+          state.editMed.days = [state.editMed.days[0]];
+        }
         render();
       });
     });
@@ -2912,6 +3047,10 @@
     if (saveMedBtn) saveMedBtn.addEventListener('click', function () {
       syncFormInputs();
       if (!state.editMed.name.trim()) { showToast('Please enter a medication name'); return; }
+      if ((state.editMed.freq === 'weekly' || state.editMed.freq === 'days') && (!Array.isArray(state.editMed.days) || !state.editMed.days.length)) {
+        showToast('Please tap which day(s) of the week');
+        return;
+      }
       google.script.run.withSuccessHandler(function (res) {
         applyStateResponse(res);
         state.editMed = null;
@@ -2932,10 +3071,18 @@
       });
     });
 
+    var syncTodoPopupInputs = function () {
+      var ta = document.getElementById('todo-popup-text');
+      if (ta) state.todoDraft = ta.value;
+      var td = document.getElementById('todo-date');
+      if (td) state.todoDate = td.value || '';
+      var tt = document.getElementById('todo-time');
+      if (tt) state.todoTime = normalizeTimeInput(tt.value);
+    };
+
     document.querySelectorAll('[data-todo-from]').forEach(function (el) {
       el.addEventListener('click', function () {
-        var ta = document.getElementById('todo-popup-text');
-        if (ta) state.todoDraft = ta.value;
+        syncTodoPopupInputs();
         state.todoFrom = el.getAttribute('data-todo-from');
         render();
       });
@@ -2943,8 +3090,7 @@
 
     document.querySelectorAll('[data-todo-who]').forEach(function (el) {
       el.addEventListener('click', function () {
-        var ta = document.getElementById('todo-popup-text');
-        if (ta) state.todoDraft = ta.value;
+        syncTodoPopupInputs();
         state.todoWho = el.getAttribute('data-todo-who');
         render();
       });
@@ -2963,6 +3109,8 @@
 
     var todoInpEl = document.getElementById('todo-input');
     if (todoInpEl) todoInpEl.addEventListener('click', function () {
+      state.todoDate = todayISO();
+      state.todoTime = currentTimeAP();
       state.todoPopupOpen = true;
       render();
       setTimeout(function () {
@@ -2974,6 +3122,7 @@
     var voiceBtn = document.getElementById('btn-voice-todo');
     if (voiceBtn) voiceBtn.addEventListener('click', function () {
       state.todoDate = todayISO();
+      state.todoTime = currentTimeAP();
       state.todoPopupOpen = true;
       render();
       startVoiceIntoPopup();
@@ -2989,18 +3138,18 @@
 
     var popupCancelBtn = document.getElementById('btn-popup-cancel');
     if (popupCancelBtn) popupCancelBtn.addEventListener('click', function () {
+      stopSpeechRec();
       state.todoPopupOpen = false;
-      state.isListening = false;
       state.todoDraft = '';
       render();
     });
 
     var popupAddBtn = document.getElementById('btn-popup-add');
     if (popupAddBtn) popupAddBtn.addEventListener('click', function () {
-      var ta = document.getElementById('todo-popup-text');
-      var txt = ta ? ta.value.trim() : state.todoDraft.trim();
+      syncTodoPopupInputs();
+      stopSpeechRec();
+      var txt = (state.todoDraft || '').trim();
       state.todoPopupOpen = false;
-      state.isListening = false;
       state.todoDraft = '';
       if (txt) addSmartTodo(txt);
       else render();
@@ -3014,6 +3163,7 @@
         addSmartTodo(txt);
       } else {
         state.todoDate = todayISO();
+        state.todoTime = currentTimeAP();
         state.todoPopupOpen = true;
         render();
       }
@@ -3053,6 +3203,7 @@
         var idx = parseInt(el.getAttribute('data-toggle-todo'), 10);
         if (state.todos[idx]) {
           state.todos[idx].done = !state.todos[idx].done;
+          lastStateSig = computeStateSig(state);
           render();
           if (typeof google !== 'undefined' && google.script && google.script.run) {
             google.script.run.withFailureHandler(function () { showToast('Could not save To Do — check Wi-Fi'); }).apiSaveTodos(state.todos);
@@ -3065,6 +3216,7 @@
       el.addEventListener('click', function () {
         var idx = parseInt(el.getAttribute('data-del-todo'), 10);
         state.todos.splice(idx, 1);
+        lastStateSig = computeStateSig(state);
         render();
         if (typeof google !== 'undefined' && google.script && google.script.run) {
           google.script.run.withFailureHandler(function () { showToast('Could not save To Do — check Wi-Fi'); }).apiSaveTodos(state.todos);
@@ -3099,6 +3251,11 @@
       el.addEventListener('change', function () {
         saveSettingsFromDom(true);
       });
+    });
+
+    var saveMainSettingsBtn = document.getElementById('btn-save-settings-main');
+    if (saveMainSettingsBtn) saveMainSettingsBtn.addEventListener('click', function () {
+      saveSettingsFromDom(true);
     });
 
     var addMeetBtn = document.getElementById('btn-add-meet');
@@ -3142,12 +3299,15 @@
   function startVoiceIntoPopup() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { showToast('Voice input not supported in this browser'); return; }
+    stopSpeechRec();
     var rec = new SR();
+    activeSpeechRec = rec;
     rec.lang = 'en-US';
     rec.interimResults = false;
     state.isListening = true;
     render();
     rec.onresult = function (ev) {
+      activeSpeechRec = null;
       state.isListening = false;
       var transcript = ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : '';
       if (transcript) {
@@ -3158,12 +3318,22 @@
       if (ta) ta.focus();
     };
     rec.onerror = function (ev) {
+      activeSpeechRec = null;
       state.isListening = false;
       render();
       var msg = (ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed'))
         ? 'Mic blocked by Google Apps Script frame — tap 🎤 on the tablet keyboard instead'
         : 'Could not hear voice — try again';
       showToast(msg);
+    };
+    rec.onend = function () {
+      if (activeSpeechRec === rec) {
+        activeSpeechRec = null;
+        if (state.isListening) {
+          state.isListening = false;
+          render();
+        }
+      }
     };
     rec.start();
   }
@@ -3180,6 +3350,7 @@
       done: false
     });
     state.todos = sortTodosList(state.todos);
+    lastStateSig = computeStateSig(state);
     render();
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withFailureHandler(function () { showToast('Could not save To Do — check Wi-Fi'); }).apiSaveTodos(state.todos);
@@ -3312,11 +3483,12 @@
   function loadPhotos() {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       google.script.run.withSuccessHandler(function (list) {
+        if (list === null || list === undefined) return;
         var next = list || [];
         if (state.photos.length > 0 && photoListKey(next) === photoListKey(state.photos)) return;
         state.photos = shufflePhotos(next);
         state.photoIdx = 0;
-        if (state.view === 'photos') render();
+        if (state.view === 'photos' && !state.activeVideo) render();
       }).apiGetPhotos();
     }
   }
@@ -3327,7 +3499,7 @@
         var next = map || {};
         if (JSON.stringify(next) === JSON.stringify(state.avatarMap)) return;
         state.avatarMap = next;
-        if (state.view === 'meds' || state.view === 'call') render();
+        if ((state.view === 'meds' || state.view === 'call') && !state.activeVideo) render();
       }).apiGetAvatars();
     }
   }
@@ -3338,36 +3510,59 @@
         var next = list || [];
         if (JSON.stringify(next) === JSON.stringify(state.videos)) return;
         state.videos = next;
-        if (state.view === 'meds' || state.view === 'photos') render();
+        if ((state.view === 'meds' || state.view === 'photos') && !state.activeVideo) render();
       }).apiGetVideos();
     }
   }
 
   function loadState() {
-    if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings' || doseInFlight || doseQueue.length) return;
+    if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings' || state.activeVideo || doseInFlight || doseQueue.length) return;
     if (typeof google !== 'undefined' && google.script && google.script.run) {
+      var reqDay = todayISO();
       google.script.run
         .withSuccessHandler(function (res) {
           hasLoadedOnce = true;
+          failedLoadCount = 0;
           loadRetryMs = 5000;
           if (loadRetryTimer) { clearTimeout(loadRetryTimer); loadRetryTimer = null; }
-          if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings' || doseInFlight || doseQueue.length) return;
+          if (state.todoPopupOpen || state.view === 'edit' || state.view === 'settings' || state.activeVideo || doseInFlight || doseQueue.length) return;
+          var curLocalDay = todayISO();
+          if (res && res.todayKey && res.todayKey !== curLocalDay) {
+            res.todayKey = curLocalDay;
+            res.todayLogs = {};
+          }
           var sig = computeStateSig(res);
           if (sig === lastStateSig) return;
           applyStateResponse(res);
-          lastLocalDateKey = todayISO();
+          lastLocalDateKey = curLocalDay;
           render();
         })
         .withFailureHandler(function () {
-          if (!hasLoadedOnce && !loadRetryTimer) {
-            loadRetryTimer = setTimeout(function () {
-              loadRetryTimer = null;
-              loadState();
-            }, loadRetryMs);
-            loadRetryMs = Math.min(30000, loadRetryMs + 5000);
+          failedLoadCount++;
+          if (!hasLoadedOnce) {
+            if (failedLoadCount >= 2 && window.__PT_RESET_API_URL) {
+              var appEl = document.getElementById('app');
+              if (appEl && !document.getElementById('btn-reset-api-url')) {
+                appEl.innerHTML =
+                  '<div style="max-width:620px;margin:80px auto;text-align:center;color:#fff;padding:28px">' +
+                    '<div style="font-size:30px;font-weight:800;margin-bottom:12px">Connecting to Parents\' Tablet…</div>' +
+                    '<div style="font-size:20px;opacity:.9;margin-bottom:24px">Waiting for Wi-Fi (retrying automatically)…</div>' +
+                    '<button type="button" class="btn edit" style="max-width:340px;margin:0 auto;height:62px" id="btn-reset-api-url">Change Connection URL</button>' +
+                  '</div>';
+                var rb = document.getElementById('btn-reset-api-url');
+                if (rb) rb.addEventListener('click', window.__PT_RESET_API_URL);
+              }
+            }
+            if (!loadRetryTimer) {
+              loadRetryTimer = setTimeout(function () {
+                loadRetryTimer = null;
+                loadState();
+              }, loadRetryMs);
+              loadRetryMs = Math.min(30000, loadRetryMs + 5000);
+            }
           }
         })
-        .apiGetState();
+        .apiGetState(reqDay);
     } else {
       hasLoadedOnce = true;
       render();
@@ -3375,8 +3570,33 @@
   }
 
   function tickClock() {
-    if (state.view === 'edit' || state.view === 'settings' || state.todoPopupOpen) return;
     var now = new Date();
+    var clk = document.querySelector('.top .clock, .ph-clock .time');
+    var nextClk = formatClock(now);
+    if (clk && clk.textContent !== nextClk) clk.textContent = nextClk;
+    var dy = document.querySelector('.top .day, .ph-clock .date');
+    var nextDy = formatDateLine(now);
+    if (dy && dy.textContent !== nextDy) dy.textContent = nextDy;
+
+    var isBusyView = (state.view === 'edit' || state.view === 'settings' || state.todoPopupOpen || state.view === 'todo' || state.view === 'call');
+    if (isBusyView && !state.activeVideo && (now.getTime() - lastUserActivityMs >= 300000)) {
+      if (state.view === 'settings' || (state.view === 'edit' && state.editTab === 'settings')) {
+        saveSettingsFromDom(true);
+      }
+      stopSpeechRec();
+      state.todoPopupOpen = false;
+      state.showCallOthers = false;
+      state.editMed = null;
+      state.deleteTarget = null;
+      state.manualView = null;
+      state.view = 'photos';
+      render();
+      loadState();
+      return;
+    }
+
+    if (state.view === 'edit' || state.view === 'settings' || state.todoPopupOpen || state.activeVideo) return;
+
     var localDay = todayISO(now);
     if (lastLocalDateKey && localDay !== lastLocalDateKey) {
       lastLocalDateKey = localDay;
@@ -3406,6 +3626,15 @@
     lastTickDueKey = dueKey;
     lastTickWaitActive = waitActive;
 
+    if (dueChanged && dueKey && (state.view === 'todo' || state.view === 'call')) {
+      state.showCallOthers = false;
+      state.manualView = null;
+      state.dismissedDueKey = '';
+      state.view = 'meds';
+      render();
+      return;
+    }
+
     var shouldBeMeds = !!dueKey && !(state.manualView === 'photos' && state.dismissedDueKey === dueKey);
     if ((shouldBeMeds && state.view === 'photos') || (!shouldBeMeds && state.view === 'meds' && state.manualView !== 'meds') || (state.view === 'meds' && (dueChanged || waitChanged))) {
       render();
@@ -3414,12 +3643,6 @@
     if (dueKey && state.lastChimedDueKey !== dueKey) {
       maybePlayAlarm(dueKey, now);
     }
-    var clk = document.querySelector('.top .clock, .ph-clock .time');
-    var nextClk = formatClock(now);
-    if (clk && clk.textContent !== nextClk) clk.textContent = nextClk;
-    var dy = document.querySelector('.top .day, .ph-clock .date');
-    var nextDy = formatDateLine(now);
-    if (dy && dy.textContent !== nextDy) dy.textContent = nextDy;
   }
 
   window.addEventListener('online', function () {

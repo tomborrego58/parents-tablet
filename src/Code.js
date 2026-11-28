@@ -34,7 +34,7 @@ function jsonResponse_(obj) {
 function dispatchApi_(action, args) {
   var a = Array.isArray(args) ? args : [];
   switch (action) {
-    case 'apiGetState': return apiGetState();
+    case 'apiGetState': return apiGetState(a[0]);
     case 'apiToggleDose': return apiToggleDose(a[0], a[1]);
     case 'apiClearPersonLogs': return apiClearPersonLogs(a[0], a[1]);
     case 'apiSaveMed': return apiSaveMed(a[0]);
@@ -67,8 +67,8 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-function apiGetState() {
-  return getAppState();
+function apiGetState(dateKey) {
+  return getAppState(dateKey);
 }
 
 function apiToggleDose(medId, dateKey) {
