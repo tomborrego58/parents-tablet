@@ -773,15 +773,16 @@
   }
   .ph-albums {
     position: absolute;
-    top: 14px;
+    top: 16px;
     left: 16px;
-    right: 16px;
+    bottom: 90px;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 10px;
     z-index: 3;
     pointer-events: none;
+    overflow-y: auto;
   }
   .ph-album-btn {
     pointer-events: auto;
