@@ -65,8 +65,8 @@ Order changed 2026-11-22: step 2 first, then step 1, then 3 to 6.
 - [x] **6. Tablet setup and handover:** Fully Kiosk Browser PLUS running banner-free **2B GitHub Pages** frontend (`docs/app/index.html`, zero Google Apps Script banner, all med slots shown all the time, fullscreen, `Keep Screen On`, `Launch on Boot`, `Open Other URL Schemes`, `Voice` + `Meet` whitelisted, Android `○` Home returns straight to Parents' Tablet). Tablet Lock screen = **Swipe** (no PIN), One UI updated, `Auto download over Wi-Fi` OFF, and both parents' home Wi-Fi networks pre-loaded & verified saved (`docs/HANDOVER.md`)
 
 ## Next steps (where to pick up)
-1. Review & fix any findings from the top-to-bottom software scrub.
-2. Update `docs/HANDOVER.md` + print the 1-page large-print "How to Use Your Tablet" cheat sheet for Gene & Peggy.
+1. Reload the tablet when home (**left edge → Go to Start URL**) to pick up the latest scrub hardening updates (`@51`).
+2. Print the 1-page large-print cheat sheet from `docs/cheat-sheet.html` (`https://tomborrego58.github.io/parents-tablet/cheat-sheet.html`) for Gene & Peggy.
 3. Make 1-time Google Meet calls on the tablet to Tom, Katie, Laura, and Matt so they stay pinned on Meet's main screen.
 4. Optional: add additional photo subfolders (`Matt and Katie`, `Laura and Tom`), create/link `Parents Tablet Videos` folder, and add Doctor phone in **⚙️ Settings**.
 

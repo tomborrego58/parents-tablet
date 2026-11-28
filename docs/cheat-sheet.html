@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to Use Your Family Tablet — Gene &amp; Peggy</title>
+  <style>
+    @page {
+      size: letter portrait;
+      margin: 0.4in 0.45in;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #f1f5f9;
+      color: #111827;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+      line-height: 1.36;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-bar {
+      max-width: 8.1in;
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1e293b;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 16px;
+    }
+    .print-btn {
+      background: #16a34a;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 20px;
+      font-size: 17px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .sheet {
+      max-width: 8.1in;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 22px 26px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+    }
+    header {
+      border-bottom: 3px solid #241773;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 27px;
+      font-weight: 900;
+      color: #241773;
+      letter-spacing: -0.3px;
+    }
+    header .sub {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #374151;
+    }
+    .intro {
+      font-size: 16.5px;
+      margin: 0 0 12px;
+      color: #1f2937;
+    }
+    .section {
+      border: 2px solid #cbd5e1;
+      border-radius: 14px;
+      padding: 11px 15px;
+      margin-bottom: 11px;
+    }
+    .section.meds { border-color: #2f5fb3; background: #f8fafc; }
+    .section.pics { border-color: #6d28d9; background: #faf5ff; }
+    .section.call { border-color: #15803d; background: #f0fdf4; }
+    .section.todo { border-color: #b45309; background: #fffbeb; }
+
+    .sec-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .tab-pill {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 17.5px;
+      font-weight: 900;
+      color: #fff;
+    }
+    .meds .tab-pill { background: #2f5fb3; }
+    .pics .tab-pill { background: #6d28d9; }
+    .call .tab-pill { background: #15803d; }
+    .todo .tab-pill { background: #b45309; }
+
+    .sec-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #111827;
+    }
+    ul {
+      margin: 0;
+      padding-left: 22px;
+      font-size: 16.2px;
+    }
+    li { margin-bottom: 5px; }
+    li:last-child { margin-bottom: 0; }
+
+    .key {
+      display: inline-block;
+      background: #e2e8f0;
+      border: 1.5px solid #94a3b8;
+      border-radius: 6px;
+      padding: 0 7px;
+      font-weight: 800;
+      font-size: 15px;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+    .key.green { background: #dcfce7; border-color: #16a34a; color: #14532d; }
+    .key.blue  { background: #dbeafe; border-color: #2563eb; color: #1e3a8a; }
+    .key.dark  { background: #1e293b; border-color: #0f172a; color: #ffffff; }
+    .key.gold  { background: #fef08a; border-color: #ca8a04; color: #713f12; }
+
+    .home-tip {
+      border: 2.5px solid #1e293b;
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 9px 14px;
+      margin-top: 10px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .home-icon {
+      flex: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #1e293b;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    footer {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13.5px;
+      color: #4b5563;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 7px;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .no-print { display: none !important; }
+      .sheet { box-shadow: none; padding: 0; max-width: 100%; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-bar no-print">
+    <span><strong>Tip:</strong> In Print dialog, uncheck <em>Headers and footers</em> so it fits cleanly on 1 page.</span>
+    <button class="print-btn" onclick="window.print()">🖨️ Print 1-Page Guide</button>
+  </div>
+
+  <div class="sheet">
+    <header>
+      <h1>How to Use Your Family Tablet</h1>
+      <div class="sub">For Gene &amp; Peggy</div>
+    </header>
+
+    <p class="intro">
+      Leave the tablet plugged into its stand — the screen stays on all day by itself. Tap any of the <strong>big tabs across the top</strong> to switch screens anytime:
+    </p>
+
+    <div class="section meds">
+      <div class="sec-head">
+        <span class="tab-pill">💊 Meds</span>
+        <span class="sec-title">Daily Medication Checklists</span>
+      </div>
+      <ul>
+        <li><strong>Automatic reminder:</strong> When pills are due, the screen switches to your lists automatically and plays a gentle chime. Need 10 more minutes? Tap <span class="key gold">Snooze 10 min</span>.</li>
+        <li><strong>Check off each pill:</strong> Tap the <strong>big square box</strong> next to each pill you take — it turns <span class="key green">✓</span> green. Tap again if you checked one by mistake.</li>
+        <li><strong>Gene's 2-hour morning wait:</strong> After checking your <em>Wake up</em> pill, wait <strong>2 hours</strong> before Morning pills — a yellow banner at the top shows the exact time!</li>
+        <li><strong>Edit pills or alarm times:</strong> Tap <span class="key">Edit</span> at the top of Gene's or Peggy's column <em>(Tom gets an email copy of every change)</em>.</li>
+      </ul>
+    </div>
+
+    <div class="section pics">
+      <div class="sec-head">
+        <span class="tab-pill">🖼️ Pictures</span>
+        <span class="sec-title">Family Photo Slideshow</span>
+      </div>
+      <ul>
+        <li><strong>Pause or go back:</strong> Use the buttons at the bottom: <span class="key dark">◀ Back</span> to see a photo again, <span class="key dark">⏸ Pause</span> to stay on a photo <em>(tap <span class="key green">▶ Play</span> to resume)</em>, or <span class="key dark">Next ▶</span>.</li>
+        <li><strong>Switch photo albums:</strong> Tap <span class="key blue">All</span> or any family button on the <strong>left side</strong> (such as <span class="key dark">Boys</span>) to view a specific album.</li>
+      </ul>
+    </div>
+
+    <div class="section call">
+      <div class="sec-head">
+        <span class="tab-pill">📞 Call</span>
+        <span class="sec-title">Phone &amp; Video Calling</span>
+      </div>
+      <ul>
+        <li>Tap <span class="key green">📞 Phone</span> under a family member's photo for a speakerphone voice call, or <span class="key blue">📹 Video</span> for a Google Meet video call (then tap their photo in Meet).</li>
+        <li>Tap <span class="key green">📞 Phone</span> under <strong>New</strong> to dial any phone number on a big keypad.</li>
+      </ul>
+    </div>
+
+    <div class="section todo">
+      <div class="sec-head">
+        <span class="tab-pill">📝 To Do List</span>
+        <span class="sec-title">Shared Reminders &amp; Notes</span>
+      </div>
+      <ul>
+        <li>Tap <span class="key green">Add</span> to type a note, or tap <span class="key">🎤 Voice</span> to speak a reminder out loud! Tap a task's square box to check it off when finished.</li>
+      </ul>
+    </div>
+
+    <div class="home-tip">
+      <div class="home-icon">○</div>
+      <div>
+        <strong>How to get back to this screen anytime:</strong> After finishing a phone or video call (or if another screen ever pops up), tap the round <strong>○ Home button</strong> at the very bottom center of the tablet.
+      </div>
+    </div>
+
+    <footer>
+      <span><strong>After a power outage:</strong> Tap the screen once so chime sounds are enabled.</span>
+      <span><em>Reminder aid only — always follow pharmacy labels &amp; doctor's instructions first.</em></span>
+    </footer>
+  </div>
+</body>
+</html>
